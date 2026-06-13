@@ -6,6 +6,7 @@ import ie.dowd.nextkeep.data.remote.ApiClient
 import ie.dowd.nextkeep.data.remote.NoteDto
 import ie.dowd.nextkeep.data.remote.NotePayload
 import ie.dowd.nextkeep.data.remote.NotesApi
+import ie.dowd.nextkeep.markdown.MarkdownEditing
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.sync.Mutex
@@ -20,6 +21,10 @@ class NotesRepository(
     val notes: Flow<List<NoteEntity>> = dao.observeNotes()
 
     private val syncMutex = Mutex()
+
+    /** Collection ETag from the last successful pull; enables 304 short-circuits. */
+    @Volatile
+    private var collectionEtag: String? = null
 
     suspend fun getNote(localId: Long): NoteEntity? = dao.getByLocalId(localId)
 
@@ -58,20 +63,34 @@ class NotesRepository(
         dao.update(existing.copy(favorite = favorite, modified = now(), dirty = true))
     }
 
-    suspend fun deleteNote(localId: Long) {
-        val existing = dao.getByLocalId(localId) ?: return
-        if (existing.remoteId == null) {
-            dao.deleteByLocalId(localId)
-        } else {
-            dao.update(existing.copy(deleted = true, dirty = true))
-        }
+    /** Flip the [taskIndex]-th markdown checkbox in a note's body. */
+    suspend fun toggleTask(localId: Long, taskIndex: Int) {
+        val note = dao.getByLocalId(localId) ?: return
+        val newBody = MarkdownEditing.toggleTaskAt(note.body, taskIndex)
+        if (newBody == note.body) return
+        dao.update(note.copy(body = newBody, modified = now(), dirty = true))
     }
 
-    suspend fun clearLocalData() = dao.deleteAll()
+    /** Tombstone the note locally; the delete is pushed on the next sync, leaving
+     *  a window for [restoreNote] (Undo). */
+    suspend fun deleteNote(localId: Long) {
+        val existing = dao.getByLocalId(localId) ?: return
+        dao.update(existing.copy(deleted = true, dirty = true))
+    }
+
+    suspend fun restoreNote(localId: Long) {
+        val existing = dao.getByLocalId(localId) ?: return
+        if (existing.deleted) dao.update(existing.copy(deleted = false, dirty = true))
+    }
+
+    suspend fun clearLocalData() {
+        collectionEtag = null
+        dao.deleteAll()
+    }
 
     /**
      * Two-way sync: push dirty local notes (creates, edits, deletes), then pull
-     * the full server state and merge it into rows without pending changes.
+     * the server state and merge it into rows without pending changes.
      */
     suspend fun sync(): Result<Unit> = syncMutex.withLock {
         val account = accountStore.account.firstOrNull()
@@ -96,34 +115,71 @@ class NotesRepository(
                         try {
                             api.deleteNote(remoteId)
                         } catch (e: HttpException) {
-                            // Already gone on the server is fine.
-                            if (e.code() != 404) throw e
+                            if (e.code() != 404) throw e // already gone is fine
                         }
                     }
                     dao.deleteByLocalId(note.localId)
+                    collectionEtag = null
                 }
 
                 note.remoteId == null -> {
                     val dto = api.createNote(payloadOf(note))
                     dao.update(mergeRemote(note, dto))
+                    collectionEtag = null
                 }
 
                 else -> {
                     val dto = try {
-                        api.updateNote(note.remoteId, payloadOf(note))
+                        api.updateNote(note.remoteId, payloadOf(note), note.etag?.ifBlank { null })
                     } catch (e: HttpException) {
-                        // Note was deleted server-side; recreate it so the local
-                        // edit isn't lost.
-                        if (e.code() == 404) api.createNote(payloadOf(note)) else throw e
+                        when (e.code()) {
+                            404 -> api.createNote(payloadOf(note)) // gone server-side; recreate
+                            412 -> {
+                                handleConflict(api, note) // changed elsewhere; keep both
+                                continue
+                            }
+                            else -> throw e
+                        }
                     }
                     dao.update(mergeRemote(note, dto))
+                    collectionEtag = null
                 }
             }
         }
     }
 
+    /**
+     * The note changed on the server since we last fetched it. Preserve both: the
+     * server's version keeps the original id, and our local edit is split off into
+     * a new "(conflict)" note that gets uploaded on the next sync.
+     */
+    private suspend fun handleConflict(api: NotesApi, local: NoteEntity) {
+        dao.insert(
+            local.copy(
+                localId = 0,
+                remoteId = null,
+                etag = null,
+                title = (local.title.ifBlank { "Note" }) + " (conflict)",
+                modified = now(),
+                dirty = true,
+                deleted = false,
+            )
+        )
+        val server = runCatching { api.getNote(local.remoteId!!) }.getOrNull()
+        if (server != null) {
+            dao.update(entityOf(server).copy(localId = local.localId))
+        } else {
+            dao.update(local.copy(dirty = false))
+        }
+        collectionEtag = null
+    }
+
     private suspend fun pull(api: NotesApi) {
-        val remote = api.getNotes()
+        val response = api.getNotes(collectionEtag)
+        if (response.code() == 304) return // unchanged since last pull
+        val remote = response.body() ?: return
+        collectionEtag = response.headers()["ETag"]
+
         for (dto in remote) {
             val existing = dao.getByRemoteId(dto.id)
             when {
@@ -131,9 +187,7 @@ class NotesRepository(
                 // Local pending changes win; they get pushed on the next sync.
                 existing.dirty -> Unit
                 // Server copy is unchanged since we last synced it: keep the
-                // local title/body split intact rather than re-deriving it from
-                // content (which would shift a body-only note's first line into
-                // the title).
+                // local title/body split intact rather than re-deriving it.
                 isUnchanged(existing, dto) -> Unit
                 else -> dao.update(entityOf(dto).copy(localId = existing.localId))
             }

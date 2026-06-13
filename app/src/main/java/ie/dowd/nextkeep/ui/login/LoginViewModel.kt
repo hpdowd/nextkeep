@@ -67,7 +67,15 @@ class LoginViewModel(
                 val url = ApiClient.normalizeBaseUrl(serverUrl)
                 // Validates the server URL, credentials, and that the Notes app
                 // is installed in one call.
-                ApiClient.create(url, username.trim(), appPassword).getNotes()
+                val response = ApiClient.create(url, username.trim(), appPassword).getNotes()
+                if (!response.isSuccessful) {
+                    error = when (response.code()) {
+                        401 -> "Wrong username or app password"
+                        404 -> "Notes app not found on this server — is it installed?"
+                        else -> "Server error (HTTP ${response.code()})"
+                    }
+                    return@launch
+                }
                 accountStore.save(Account(url, username.trim(), appPassword))
                 repository.sync()
                 onSuccess()

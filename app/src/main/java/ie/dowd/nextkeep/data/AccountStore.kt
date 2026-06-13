@@ -21,19 +21,21 @@ class AccountStore(private val context: Context) {
     private val keyUser = stringPreferencesKey("username")
     private val keyPassword = stringPreferencesKey("app_password")
 
+    // Values are encrypted at rest (Keystore-backed); decrypt on read. A failed
+    // decrypt (corrupt or pre-encryption data) reads as "not logged in".
     val account: Flow<Account?> = context.dataStore.data.map { prefs ->
-        val url = prefs[keyUrl]
-        val user = prefs[keyUser]
-        val pass = prefs[keyPassword]
+        val url = prefs[keyUrl]?.let { CryptoManager.decrypt(it) }
+        val user = prefs[keyUser]?.let { CryptoManager.decrypt(it) }
+        val pass = prefs[keyPassword]?.let { CryptoManager.decrypt(it) }
         if (url.isNullOrBlank() || user.isNullOrBlank() || pass.isNullOrBlank()) null
         else Account(url, user, pass)
     }
 
     suspend fun save(account: Account) {
         context.dataStore.edit { prefs ->
-            prefs[keyUrl] = account.baseUrl
-            prefs[keyUser] = account.username
-            prefs[keyPassword] = account.appPassword
+            prefs[keyUrl] = CryptoManager.encrypt(account.baseUrl)
+            prefs[keyUser] = CryptoManager.encrypt(account.username)
+            prefs[keyPassword] = CryptoManager.encrypt(account.appPassword)
         }
     }
 

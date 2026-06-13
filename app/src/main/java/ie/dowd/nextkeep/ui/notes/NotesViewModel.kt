@@ -8,6 +8,8 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import ie.dowd.nextkeep.NextKeepApp
 import ie.dowd.nextkeep.data.AccountStore
 import ie.dowd.nextkeep.data.NotesRepository
+import ie.dowd.nextkeep.data.SettingsStore
+import ie.dowd.nextkeep.data.SortOrder
 import ie.dowd.nextkeep.data.local.NoteEntity
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -24,6 +26,7 @@ data class NotesUiState(
     val categories: List<String> = emptyList(),
     val selectedCategory: String? = null,
     val query: String = "",
+    val columns: Int = 2,
     val syncing: Boolean = false,
     val syncError: String? = null,
     val loaded: Boolean = false,
@@ -31,9 +34,17 @@ data class NotesUiState(
     val isEmpty: Boolean get() = loaded && pinned.isEmpty() && others.isEmpty()
 }
 
+private data class Filters(
+    val query: String,
+    val category: String?,
+    val syncing: Boolean,
+    val syncError: String?,
+)
+
 class NotesViewModel(
     private val repository: NotesRepository,
     private val accountStore: AccountStore,
+    private val settingsStore: SettingsStore,
 ) : ViewModel() {
 
     private val query = MutableStateFlow("")
@@ -45,24 +56,29 @@ class NotesViewModel(
         .map { it?.username.orEmpty() }
         .stateIn(viewModelScope, SharingStarted.Eagerly, "")
 
-    val uiState = combine(
-        repository.notes, query, selectedCategory, syncing, syncError,
-    ) { notes, query, category, syncing, syncError ->
+    private val filters = combine(query, selectedCategory, syncing, syncError, ::Filters)
+
+    val uiState = combine(repository.notes, filters, settingsStore.settings) { notes, f, settings ->
         val filtered = notes.filter { note ->
-            val matchesQuery = query.isBlank() ||
-                note.title.contains(query, ignoreCase = true) ||
-                note.body.contains(query, ignoreCase = true)
-            val matchesCategory = category == null || note.category == category
+            val matchesQuery = f.query.isBlank() ||
+                note.title.contains(f.query, ignoreCase = true) ||
+                note.body.contains(f.query, ignoreCase = true)
+            val matchesCategory = f.category == null || note.category == f.category
             matchesQuery && matchesCategory
         }
+        val comparator: Comparator<NoteEntity> = when (settings.sortOrder) {
+            SortOrder.MODIFIED -> compareByDescending { it.modified }
+            SortOrder.TITLE -> compareBy(String.CASE_INSENSITIVE_ORDER) { it.title }
+        }
         NotesUiState(
-            pinned = filtered.filter { it.favorite },
-            others = filtered.filterNot { it.favorite },
+            pinned = filtered.filter { it.favorite }.sortedWith(comparator),
+            others = filtered.filterNot { it.favorite }.sortedWith(comparator),
             categories = notes.map { it.category }.filter { it.isNotBlank() }.distinct().sorted(),
-            selectedCategory = category,
-            query = query,
-            syncing = syncing,
-            syncError = syncError,
+            selectedCategory = f.category,
+            query = f.query,
+            columns = settings.gridColumns,
+            syncing = f.syncing,
+            syncError = f.syncError,
             loaded = true,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), NotesUiState())
@@ -96,6 +112,24 @@ class NotesViewModel(
         selectedCategory.value = if (selectedCategory.value == category) null else category
     }
 
+    /** Restore a note that was just deleted (Undo). */
+    fun undoDelete(localId: Long) {
+        viewModelScope.launch { repository.restoreNote(localId) }
+    }
+
+    /** Push the pending delete (after the Undo window elapses). */
+    fun confirmDelete() {
+        viewModelScope.launch { repository.sync() }
+    }
+
+    /** Toggle a checkbox tapped directly on a note card. */
+    fun toggleTask(localId: Long, taskIndex: Int) {
+        viewModelScope.launch {
+            repository.toggleTask(localId, taskIndex)
+            repository.sync()
+        }
+    }
+
     fun logout(onLoggedOut: () -> Unit) {
         viewModelScope.launch {
             accountStore.clear()
@@ -111,6 +145,7 @@ class NotesViewModel(
                 NotesViewModel(
                     app.container.repository,
                     app.container.accountStore,
+                    app.container.settingsStore,
                 )
             }
         }

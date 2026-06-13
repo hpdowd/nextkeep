@@ -2,7 +2,9 @@ package ie.dowd.nextkeep.ui.theme
 
 import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
@@ -10,6 +12,10 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.unit.isSpecified
+import androidx.compose.ui.unit.sp
+import ie.dowd.nextkeep.data.ThemeMode
 
 // Fallback palette for pre-Android 12 devices, modeled on Google Keep:
 // white surfaces, Google blue accents, subtle grey outlines.
@@ -49,20 +55,63 @@ private val DarkColors = darkColorScheme(
 
 @Composable
 fun NextKeepTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
+    themeMode: ThemeMode = ThemeMode.SYSTEM,
+    fontScale: Float = 1f,
     content: @Composable () -> Unit,
 ) {
+    val dark = when (themeMode) {
+        ThemeMode.SYSTEM -> isSystemInDarkTheme()
+        ThemeMode.LIGHT -> false
+        ThemeMode.DARK, ThemeMode.BLACK -> true
+    }
     val context = LocalContext.current
-    val colorScheme = when {
-        Build.VERSION.SDK_INT >= Build.VERSION_CODES.S ->
-            if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
 
-        darkTheme -> DarkColors
+    var colorScheme: ColorScheme = when {
+        Build.VERSION.SDK_INT >= Build.VERSION_CODES.S ->
+            if (dark) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+
+        dark -> DarkColors
         else -> LightColors
+    }
+
+    if (themeMode == ThemeMode.BLACK) {
+        // AMOLED: true-black backgrounds, near-black surfaces.
+        colorScheme = colorScheme.copy(
+            background = Color.Black,
+            surface = Color.Black,
+            surfaceVariant = Color(0xFF1A1A1A),
+        )
     }
 
     MaterialTheme(
         colorScheme = colorScheme,
+        typography = Typography().scaledBy(fontScale),
         content = content,
+    )
+}
+
+/** Scales every text style's size and line height — drives the Font size setting. */
+private fun Typography.scaledBy(factor: Float): Typography {
+    if (factor == 1f) return this
+    fun TextStyle.scaled(): TextStyle = copy(
+        fontSize = (fontSize.value * factor).sp,
+        lineHeight = if (lineHeight.isSpecified) (lineHeight.value * factor).sp else lineHeight,
+    )
+    return copy(
+        displayLarge = displayLarge.scaled(),
+        displayMedium = displayMedium.scaled(),
+        displaySmall = displaySmall.scaled(),
+        headlineLarge = headlineLarge.scaled(),
+        headlineMedium = headlineMedium.scaled(),
+        headlineSmall = headlineSmall.scaled(),
+        titleLarge = titleLarge.scaled(),
+        titleMedium = titleMedium.scaled(),
+        titleSmall = titleSmall.scaled(),
+        bodyLarge = bodyLarge.scaled(),
+        bodyMedium = bodyMedium.scaled(),
+        bodySmall = bodySmall.scaled(),
+        labelLarge = labelLarge.scaled(),
+        labelMedium = labelMedium.scaled(),
+        labelSmall = labelSmall.scaled(),
     )
 }

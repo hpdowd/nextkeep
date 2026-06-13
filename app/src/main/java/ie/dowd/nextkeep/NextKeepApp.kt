@@ -4,6 +4,7 @@ import android.app.Application
 import android.content.Context
 import ie.dowd.nextkeep.data.AccountStore
 import ie.dowd.nextkeep.data.NotesRepository
+import ie.dowd.nextkeep.data.SettingsStore
 import ie.dowd.nextkeep.data.local.NotesDatabase
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -17,11 +18,13 @@ class NextKeepApp : Application() {
     override fun onCreate() {
         super.onCreate()
         container = AppContainer(this)
+        ie.dowd.nextkeep.data.SyncWorker.schedule(this)
     }
 }
 
 class AppContainer(context: Context) {
     val accountStore = AccountStore(context)
+    val settingsStore = SettingsStore(context)
     val database = NotesDatabase.build(context)
     val repository = NotesRepository(database.noteDao(), accountStore)
 
