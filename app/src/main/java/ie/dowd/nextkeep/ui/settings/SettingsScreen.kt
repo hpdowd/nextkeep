@@ -93,7 +93,7 @@ fun SettingsScreen(
                 label = "Font size",
                 options = FontSize.entries,
                 selected = settings.fontSize,
-                name = { it.name.lowercase().replaceFirstChar(Char::uppercase) },
+                name = { it.label() },
                 onSelect = viewModel::setFontSize,
             )
             ChoiceRow(
@@ -248,4 +248,11 @@ private fun ThemeMode.label() = when (this) {
     ThemeMode.LIGHT -> "Light"
     ThemeMode.DARK -> "Dark"
     ThemeMode.BLACK -> "Black"
+}
+
+private fun FontSize.label() = when (this) {
+    FontSize.XSMALL -> "X-Small"
+    FontSize.SMALL -> "Small"
+    FontSize.MEDIUM -> "Medium"
+    FontSize.LARGE -> "Large"
 }

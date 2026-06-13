@@ -56,6 +56,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -229,14 +230,14 @@ private fun NoteCard(note: NoteEntity, darkTheme: Boolean, onToggleTask: (Int) -
             if (previewTitle.isNotBlank()) {
                 Text(
                     previewTitle,
-                    style = MaterialTheme.typography.titleMedium,
+                    style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.SemiBold),
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )
                 if (note.body.isNotBlank()) Spacer(Modifier.height(6.dp))
             }
             if (note.body.isNotBlank()) {
-                MarkdownText(note.body, maxBlocks = 10, onToggleTask = onToggleTask)
+                MarkdownText(note.body, maxBlocks = 6, onToggleTask = onToggleTask)
             }
             if (note.category.isNotBlank()) {
                 Spacer(Modifier.height(10.dp))

@@ -17,7 +17,7 @@ enum class ThemeMode { SYSTEM, LIGHT, DARK, BLACK }
 enum class SortOrder { MODIFIED, TITLE }
 
 /** Font scale presets applied to the whole app's typography. */
-enum class FontSize(val scale: Float) { SMALL(0.85f), MEDIUM(1.0f), LARGE(1.18f) }
+enum class FontSize(val scale: Float) { XSMALL(0.72f), SMALL(0.85f), MEDIUM(1.0f), LARGE(1.18f) }
 
 data class Settings(
     val themeMode: ThemeMode = ThemeMode.SYSTEM,

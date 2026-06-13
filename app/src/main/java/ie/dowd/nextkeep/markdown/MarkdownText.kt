@@ -36,6 +36,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 
@@ -63,6 +64,10 @@ fun MarkdownText(
     val linkColor = MaterialTheme.colorScheme.primary
     val codeBg = MaterialTheme.colorScheme.surfaceVariant
     val onSurfaceVariant = MaterialTheme.colorScheme.onSurfaceVariant
+    // In preview mode (maxBlocks capped) also cap each block's lines, so a single
+    // long paragraph or code block can't make a giant card.
+    val bodyLines = if (maxBlocks == Int.MAX_VALUE) Int.MAX_VALUE else 4
+    val headingLines = if (maxBlocks == Int.MAX_VALUE) Int.MAX_VALUE else 2
 
     Column(modifier, verticalArrangement = Arrangement.spacedBy(2.dp)) {
         var taskOrdinal = 0
@@ -71,20 +76,34 @@ fun MarkdownText(
                 is MdBlock.Heading -> Text(
                     buildInline(block.text, linkColor, codeBg),
                     style = headingStyle(block.level),
+                    maxLines = headingLines,
+                    overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.padding(top = 10.dp, bottom = 2.dp),
                 )
 
                 is MdBlock.Paragraph -> Text(
                     buildInline(block.text, linkColor, codeBg),
                     style = MaterialTheme.typography.bodyLarge,
+                    maxLines = bodyLines,
+                    overflow = TextOverflow.Ellipsis,
                 )
 
                 is MdBlock.Bullet -> MarkerRow(indent = block.indent, marker = "•") {
-                    Text(buildInline(block.text, linkColor, codeBg), style = MaterialTheme.typography.bodyLarge)
+                    Text(
+                        buildInline(block.text, linkColor, codeBg),
+                        style = MaterialTheme.typography.bodyLarge,
+                        maxLines = bodyLines,
+                        overflow = TextOverflow.Ellipsis,
+                    )
                 }
 
                 is MdBlock.Numbered -> MarkerRow(indent = block.indent, marker = "${block.number}.") {
-                    Text(buildInline(block.text, linkColor, codeBg), style = MaterialTheme.typography.bodyLarge)
+                    Text(
+                        buildInline(block.text, linkColor, codeBg),
+                        style = MaterialTheme.typography.bodyLarge,
+                        maxLines = bodyLines,
+                        overflow = TextOverflow.Ellipsis,
+                    )
                 }
 
                 is MdBlock.Task -> {
@@ -107,6 +126,8 @@ fun MarkdownText(
                         style = MaterialTheme.typography.bodyLarge,
                         color = if (block.checked) onSurfaceVariant else Color.Unspecified,
                         textDecoration = if (block.checked) TextDecoration.LineThrough else null,
+                        maxLines = bodyLines,
+                        overflow = TextOverflow.Ellipsis,
                     )
                     }
                 }
@@ -124,6 +145,8 @@ fun MarkdownText(
                         style = MaterialTheme.typography.bodyLarge,
                         color = onSurfaceVariant,
                         fontStyle = FontStyle.Italic,
+                        maxLines = bodyLines,
+                        overflow = TextOverflow.Ellipsis,
                     )
                 }
 
@@ -137,6 +160,8 @@ fun MarkdownText(
                     Text(
                         block.lines.joinToString("\n"),
                         style = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Monospace),
+                        maxLines = bodyLines,
+                        overflow = TextOverflow.Ellipsis,
                     )
                 }
 
