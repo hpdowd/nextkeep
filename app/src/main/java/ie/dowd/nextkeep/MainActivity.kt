@@ -6,6 +6,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
@@ -52,7 +53,7 @@ class MainActivity : FragmentActivity() {
             val settings by app.container.settingsStore.settings
                 .collectAsStateWithLifecycle(initialValue = Settings())
             NextKeepTheme(themeMode = settings.themeMode, fontScale = settings.fontSize.scale) {
-                Surface(modifier = Modifier.fillMaxSize()) {
+                Surface(modifier = Modifier.fillMaxSize().imePadding()) {
                     AppRoot(
                         appLockEnabled = settings.appLock,
                         sharedText = sharedText.value,
