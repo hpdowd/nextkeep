@@ -1,6 +1,7 @@
 package ie.dowd.nextkeep.markdown
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -45,7 +46,12 @@ import androidx.compose.ui.unit.dp
  * [parseMarkdownBlocks] for the parser it builds on.
  */
 @Composable
-fun MarkdownText(markdown: String, modifier: Modifier = Modifier, maxBlocks: Int = Int.MAX_VALUE) {
+fun MarkdownText(
+    markdown: String,
+    modifier: Modifier = Modifier,
+    maxBlocks: Int = Int.MAX_VALUE,
+    onToggleTask: ((Int) -> Unit)? = null,
+) {
     val parsed = remember(markdown) { parseMarkdownBlocks(markdown) }
     // For previews (maxBlocks set), drop blank lines and cap the count so a long
     // note can't produce a giant card.
@@ -59,6 +65,7 @@ fun MarkdownText(markdown: String, modifier: Modifier = Modifier, maxBlocks: Int
     val onSurfaceVariant = MaterialTheme.colorScheme.onSurfaceVariant
 
     Column(modifier, verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        var taskOrdinal = 0
         blocks.forEach { block ->
             when (block) {
                 is MdBlock.Heading -> Text(
@@ -80,7 +87,14 @@ fun MarkdownText(markdown: String, modifier: Modifier = Modifier, maxBlocks: Int
                     Text(buildInline(block.text, linkColor, codeBg), style = MaterialTheme.typography.bodyLarge)
                 }
 
-                is MdBlock.Task -> Row(verticalAlignment = Alignment.CenterVertically) {
+                is MdBlock.Task -> {
+                    val ordinal = taskOrdinal++
+                    val rowModifier = if (onToggleTask != null) {
+                        Modifier.fillMaxWidth().clickable { onToggleTask(ordinal) }
+                    } else {
+                        Modifier
+                    }
+                    Row(modifier = rowModifier, verticalAlignment = Alignment.CenterVertically) {
                     Icon(
                         if (block.checked) Icons.Outlined.CheckBox else Icons.Outlined.CheckBoxOutlineBlank,
                         contentDescription = null,
@@ -94,6 +108,7 @@ fun MarkdownText(markdown: String, modifier: Modifier = Modifier, maxBlocks: Int
                         color = if (block.checked) onSurfaceVariant else Color.Unspecified,
                         textDecoration = if (block.checked) TextDecoration.LineThrough else null,
                     )
+                    }
                 }
 
                 is MdBlock.Quote -> Row(modifier = Modifier.height(IntrinsicSize.Min)) {

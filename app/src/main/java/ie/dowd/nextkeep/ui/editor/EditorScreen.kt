@@ -19,6 +19,8 @@ import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
@@ -65,6 +67,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -77,6 +80,7 @@ import ie.dowd.nextkeep.markdown.MarkdownText
 fun EditorScreen(
     localId: Long,
     onBack: () -> Unit,
+    onDeleted: (Long?) -> Unit,
     viewModel: EditorViewModel = viewModel(
         key = "editor-$localId",
         factory = EditorViewModel.factory(localId),
@@ -133,7 +137,7 @@ fun EditorScreen(
                     }) {
                         Icon(Icons.Outlined.Share, contentDescription = "Share")
                     }
-                    IconButton(onClick = { viewModel.delete(onBack) }) {
+                    IconButton(onClick = { viewModel.delete(onDeleted) }) {
                         Icon(Icons.Outlined.Delete, contentDescription = "Delete")
                     }
                 },
@@ -199,13 +203,18 @@ fun EditorScreen(
                         modifier = Modifier.padding(vertical = 8.dp),
                     )
                 }
-                MarkdownText(viewModel.body.text, Modifier.fillMaxWidth())
+                MarkdownText(
+                    viewModel.body.text,
+                    Modifier.fillMaxWidth(),
+                    onToggleTask = viewModel::toggleTask,
+                )
                 Spacer(Modifier.height(80.dp))
             } else {
                 TitleField(
                     value = viewModel.title,
                     onValueChange = viewModel::onTitleChange,
                     placeholder = stringResource(R.string.title_hint),
+                    onNext = { bodyFocus.requestFocus() },
                 )
                 Spacer(Modifier.height(8.dp))
                 MarkdownBodyField(
@@ -279,13 +288,21 @@ private fun FormatButton(icon: ImageVector, description: String, onClick: () -> 
 }
 
 @Composable
-private fun TitleField(value: String, onValueChange: (String) -> Unit, placeholder: String) {
+private fun TitleField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    placeholder: String,
+    onNext: () -> Unit,
+) {
     val style = MaterialTheme.typography.headlineSmall.copy(color = MaterialTheme.colorScheme.onSurface)
     Box(Modifier.fillMaxWidth()) {
         BasicTextField(
             value = value,
             onValueChange = onValueChange,
             textStyle = style,
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+            keyboardActions = KeyboardActions(onNext = { onNext() }),
             cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
             modifier = Modifier.fillMaxWidth(),
         )

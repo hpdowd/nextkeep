@@ -76,6 +76,64 @@ object MarkdownEditing {
     fun italic(text: String, selStart: Int, selEnd: Int): Edit =
         wrapInline(text, selStart, selEnd, "*")
 
+    private val taskLineRe = Regex("^(\\s*[-*+] \\[)([ xX])(].*)$")
+
+    /** Flip the checkbox of the [taskIndex]-th task line (0-based). Length-preserving. */
+    fun toggleTaskAt(content: String, taskIndex: Int): String {
+        var seen = -1
+        return content.split('\n').joinToString("\n") { line ->
+            val m = taskLineRe.matchEntire(line)
+            if (m != null) {
+                seen++
+                if (seen == taskIndex) {
+                    val checked = m.groupValues[2].equals("x", ignoreCase = true)
+                    return@joinToString m.groupValues[1] + (if (checked) " " else "x") + m.groupValues[3]
+                }
+            }
+            line
+        }
+    }
+
+    private val contTaskRe = Regex("^(\\s*)([-*+]) \\[[ xX]] (.*)$")
+    private val contNumRe = Regex("^(\\s*)(\\d+)\\. (.*)$")
+    private val contBulletRe = Regex("^(\\s*)([-*+]) (.*)$")
+
+    /**
+     * Auto-continues a list after Enter. [cursor] is the caret just after a newly
+     * inserted '\n'. Returns the edit to apply, or null if the previous line is
+     * not a list item. Pressing Enter on an empty item exits the list.
+     */
+    fun onNewline(text: String, cursor: Int): Edit? {
+        if (cursor <= 0 || cursor > text.length || text[cursor - 1] != '\n') return null
+        val prevStart = text.lastIndexOf('\n', cursor - 2) + 1
+        val prevLine = text.substring(prevStart, cursor - 1)
+
+        val (marker, content) = continuationFor(prevLine) ?: return null
+        if (content.isBlank()) {
+            // Empty item -> exit the list: drop the marker line and the newline.
+            val newText = text.substring(0, prevStart) + text.substring(cursor)
+            return Edit(newText, prevStart, prevStart)
+        }
+        val newText = text.substring(0, cursor) + marker + text.substring(cursor)
+        val pos = cursor + marker.length
+        return Edit(newText, pos, pos)
+    }
+
+    /** The marker to insert on the next line, paired with the previous item's text. */
+    private fun continuationFor(line: String): Pair<String, String>? {
+        contTaskRe.matchEntire(line)?.let {
+            return "${it.groupValues[1]}${it.groupValues[2]} [ ] " to it.groupValues[3]
+        }
+        contNumRe.matchEntire(line)?.let {
+            val next = (it.groupValues[2].toIntOrNull() ?: 1) + 1
+            return "${it.groupValues[1]}$next. " to it.groupValues[3]
+        }
+        contBulletRe.matchEntire(line)?.let {
+            return "${it.groupValues[1]}${it.groupValues[2]} " to it.groupValues[3]
+        }
+        return null
+    }
+
     fun wrapInline(text: String, selStart: Int, selEnd: Int, marker: String): Edit {
         val s = minOf(selStart, selEnd).coerceIn(0, text.length)
         val e = maxOf(selStart, selEnd).coerceIn(0, text.length)

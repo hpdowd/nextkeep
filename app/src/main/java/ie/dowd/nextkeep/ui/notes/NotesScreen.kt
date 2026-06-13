@@ -27,6 +27,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Lightbulb
 import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
@@ -38,8 +39,10 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
@@ -73,7 +76,10 @@ import androidx.compose.ui.res.stringResource
 fun NotesScreen(
     onOpenNote: (Long) -> Unit,
     onNewNote: () -> Unit,
+    onOpenSettings: () -> Unit,
     onLoggedOut: () -> Unit,
+    justDeletedId: Long,
+    onUndoConsumed: () -> Unit,
     viewModel: NotesViewModel = viewModel(factory = NotesViewModel.Factory),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -84,6 +90,19 @@ fun NotesScreen(
         state.syncError?.let {
             snackbarHostState.showSnackbar(it)
             viewModel.dismissSyncError()
+        }
+    }
+
+    LaunchedEffect(justDeletedId) {
+        if (justDeletedId > 0) {
+            val result = snackbarHostState.showSnackbar(
+                message = "Note deleted",
+                actionLabel = "Undo",
+                duration = SnackbarDuration.Long,
+            )
+            if (result == SnackbarResult.ActionPerformed) viewModel.undoDelete(justDeletedId)
+            else viewModel.confirmDelete()
+            onUndoConsumed()
         }
     }
 
@@ -109,6 +128,7 @@ fun NotesScreen(
                 onQueryChange = viewModel::onQueryChange,
                 accountName = accountName,
                 onSyncNow = viewModel::refresh,
+                onOpenSettings = onOpenSettings,
                 onLogout = { viewModel.logout(onLoggedOut) },
             )
 
@@ -136,7 +156,11 @@ fun NotesScreen(
                 if (state.isEmpty) {
                     EmptyState()
                 } else {
-                    NotesGrid(state = state, onOpenNote = onOpenNote)
+                    NotesGrid(
+                        state = state,
+                        onOpenNote = onOpenNote,
+                        onToggleTask = viewModel::toggleTask,
+                    )
                 }
             }
         }
@@ -144,10 +168,14 @@ fun NotesScreen(
 }
 
 @Composable
-private fun NotesGrid(state: NotesUiState, onOpenNote: (Long) -> Unit) {
+private fun NotesGrid(
+    state: NotesUiState,
+    onOpenNote: (Long) -> Unit,
+    onToggleTask: (Long, Int) -> Unit,
+) {
     val darkTheme = isSystemInDarkTheme()
     LazyVerticalStaggeredGrid(
-        columns = StaggeredGridCells.Fixed(2),
+        columns = StaggeredGridCells.Fixed(state.columns),
         contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 4.dp, bottom = 96.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalItemSpacing = 8.dp,
@@ -158,7 +186,7 @@ private fun NotesGrid(state: NotesUiState, onOpenNote: (Long) -> Unit) {
                 SectionLabel(stringResource(R.string.pinned))
             }
             items(state.pinned, key = { "p${it.localId}" }) { note ->
-                NoteCard(note, darkTheme) { onOpenNote(note.localId) }
+                NoteCard(note, darkTheme, onToggleTask = { onToggleTask(note.localId, it) }) { onOpenNote(note.localId) }
             }
             if (state.others.isNotEmpty()) {
                 item(span = StaggeredGridItemSpan.FullLine) {
@@ -167,7 +195,7 @@ private fun NotesGrid(state: NotesUiState, onOpenNote: (Long) -> Unit) {
             }
         }
         items(state.others, key = { "o${it.localId}" }) { note ->
-            NoteCard(note, darkTheme) { onOpenNote(note.localId) }
+            NoteCard(note, darkTheme, onToggleTask = { onToggleTask(note.localId, it) }) { onOpenNote(note.localId) }
         }
     }
 }
@@ -183,7 +211,7 @@ private fun SectionLabel(text: String) {
 }
 
 @Composable
-private fun NoteCard(note: NoteEntity, darkTheme: Boolean, onClick: () -> Unit) {
+private fun NoteCard(note: NoteEntity, darkTheme: Boolean, onToggleTask: (Int) -> Unit, onClick: () -> Unit) {
     val tint = categoryColor(note.category, darkTheme)
     // Card body renders markdown (capped); the title stays a clean bold line.
     val previewTitle = remember(note.title) { markdownToPlainText(note.title) }
@@ -208,7 +236,7 @@ private fun NoteCard(note: NoteEntity, darkTheme: Boolean, onClick: () -> Unit) 
                 if (note.body.isNotBlank()) Spacer(Modifier.height(6.dp))
             }
             if (note.body.isNotBlank()) {
-                MarkdownText(note.body, maxBlocks = 10)
+                MarkdownText(note.body, maxBlocks = 10, onToggleTask = onToggleTask)
             }
             if (note.category.isNotBlank()) {
                 Spacer(Modifier.height(10.dp))
@@ -233,6 +261,7 @@ private fun SearchBar(
     onQueryChange: (String) -> Unit,
     accountName: String,
     onSyncNow: () -> Unit,
+    onOpenSettings: () -> Unit,
     onLogout: () -> Unit,
 ) {
     var menuOpen by remember { mutableStateOf(false) }
@@ -304,6 +333,14 @@ private fun SearchBar(
                         onClick = {
                             menuOpen = false
                             onSyncNow()
+                        },
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Settings") },
+                        leadingIcon = { Icon(Icons.Outlined.Settings, contentDescription = null) },
+                        onClick = {
+                            menuOpen = false
+                            onOpenSettings()
                         },
                     )
                     DropdownMenuItem(

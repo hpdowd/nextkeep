@@ -61,7 +61,33 @@ class EditorViewModel(
     }
 
     fun onBodyChange(value: TextFieldValue) {
+        // Detect a single '\n' just inserted (by diffing, not by trusting the
+        // reported selection) and auto-continue the list.
+        val caret = newlineInsertedAt(body.text, value.text)
+        if (caret != null) {
+            MarkdownEditing.onNewline(value.text, caret)?.let { edit ->
+                body = TextFieldValue(edit.text, TextRange(edit.selStart, edit.selEnd))
+                scheduleSave()
+                return
+            }
+        }
         body = value
+        scheduleSave()
+    }
+
+    /** If [new] is [old] with a single '\n' inserted, return the caret after it. */
+    private fun newlineInsertedAt(old: String, new: String): Int? {
+        if (new.length != old.length + 1) return null
+        var i = 0
+        while (i < old.length && old[i] == new[i]) i++
+        return if (new[i] == '\n' && old.substring(i) == new.substring(i + 1)) i + 1 else null
+    }
+
+    /** Toggle the [taskIndex]-th checkbox in the body (tapped in the preview). */
+    fun toggleTask(taskIndex: Int) {
+        val newText = MarkdownEditing.toggleTaskAt(body.text, taskIndex)
+        if (newText == body.text) return
+        body = body.copy(text = newText)
         scheduleSave()
     }
 
@@ -93,17 +119,14 @@ class EditorViewModel(
         scheduleSave()
     }
 
-    fun delete(onDeleted: () -> Unit) {
+    fun delete(onDeleted: (Long?) -> Unit) {
         deleted = true
         saveJob?.cancel()
         val id = currentLocalId
-        appScope.launch {
-            if (id != null) {
-                repository.deleteNote(id)
-                repository.sync()
-            }
-        }
-        onDeleted()
+        // Tombstone only; the list shows an Undo snackbar and the delete is
+        // pushed to the server on the next sync.
+        appScope.launch { if (id != null) repository.deleteNote(id) }
+        onDeleted(id)
     }
 
     /** Called when the editor leaves the screen: save immediately and push. */
