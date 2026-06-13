@@ -1,0 +1,62 @@
+name: Build APK
+
+# Builds the app in the cloud and publishes the APK, so any machine can just
+# download it — no local Android toolchain required.
+#
+# This file works on BOTH GitHub Actions and self-hosted Gitea/Forgejo Actions:
+# both read workflows from .github/workflows/ and share the same YAML syntax.
+# (GitHub provides hosted runners for free; on Gitea you must register a runner
+#  yourself — see README "Continuous builds".)
+
+on:
+  push:
+    branches: [ main ]
+    tags: [ 'v*' ]          # a tag like v1.0 also publishes a Release with the APK
+  pull_request:
+  workflow_dispatch:         # adds a "Run workflow" button in the web UI
+
+permissions:
+  contents: write            # allow attaching APKs to a Release on tag builds
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install required SDK packages
+        run: sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0"
+
+      - name: Build debug + release APKs
+        run: ./gradlew :app:assembleDebug :app:assembleRelease --no-daemon --stacktrace
+
+      - name: Upload APKs (downloadable from this run)
+        uses: actions/upload-artifact@v4
+        with:
+          name: nextkeep-apk
+          path: |
+            app/build/outputs/apk/debug/app-debug.apk
+            app/build/outputs/apk/release/app-release*.apk
+          if-no-files-found: error
+
+      # On a version tag (e.g. v1.0), also attach the APKs to a GitHub Release.
+      # Guarded to github.com because it uses the GitHub Releases API; on Gitea
+      # the artifact above is the way to grab the build.
+      - name: Attach APKs to a Release (on version tags)
+        if: startsWith(github.ref, 'refs/tags/') && github.server_url == 'https://github.com'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            app/build/outputs/apk/debug/app-debug.apk
+            app/build/outputs/apk/release/app-release*.apk

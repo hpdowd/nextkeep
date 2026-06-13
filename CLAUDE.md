@@ -19,8 +19,10 @@ There is no `gradlew` daemon preference; pass `--no-daemon` in CI-like runs. Pre
 ## Environment gotchas
 
 - **JDK must be 17–21, NOT the system default if that is newer.** AGP 8.7 rejects
-  JDK 26. `gradle.properties` pins `org.gradle.java.home=/usr/lib/jvm/java-21-openjdk`
-  (machine-specific — adjust for your box, or remove the pin if your default is 17–21).
+  JDK 25+. The committed `gradle.properties` no longer pins a JDK path (it was
+  machine-specific). Set `org.gradle.java.home` per machine in
+  `~/.gradle/gradle.properties` (or `JAVA_HOME`). The Gradle launcher tolerates a newer
+  default JDK; only the build daemon needs 17–21. CI uses `actions/setup-java`.
 - Android SDK path is in `local.properties` (gitignored). On the original dev machine
   it is `~/Android/Sdk`; system `adb` is at `/usr/sbin/adb`.
 - `minSdk 26`, `targetSdk`/`compileSdk 35`.
