@@ -5,6 +5,7 @@ import ie.dowd.nextkeep.markdown.MdBlock
 import ie.dowd.nextkeep.markdown.markdownToPlainText
 import ie.dowd.nextkeep.markdown.parseMarkdownBlocks
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -138,5 +139,60 @@ class MarkdownStripTest {
     @Test
     fun strips_link_to_its_text() {
         assertEquals("Nextcloud", markdownToPlainText("[Nextcloud](https://nextcloud.com)"))
+    }
+}
+
+class MarkdownTaskToggleTest {
+
+    @Test
+    fun toggles_unchecked_to_checked() {
+        assertEquals("- [x] milk", MarkdownEditing.toggleTaskAt("- [ ] milk", 0))
+    }
+
+    @Test
+    fun toggles_checked_to_unchecked() {
+        assertEquals("- [ ] eggs", MarkdownEditing.toggleTaskAt("- [x] eggs", 0))
+    }
+
+    @Test
+    fun toggles_only_the_indexed_task() {
+        val content = "- [ ] a\n- [ ] b\n- [ ] c"
+        assertEquals("- [ ] a\n- [x] b\n- [ ] c", MarkdownEditing.toggleTaskAt(content, 1))
+    }
+
+    @Test
+    fun task_index_counts_only_task_lines() {
+        val content = "# Title\n- [ ] a\nplain\n- [ ] b"
+        assertEquals("# Title\n- [ ] a\nplain\n- [x] b", MarkdownEditing.toggleTaskAt(content, 1))
+    }
+}
+
+class MarkdownNewlineTest {
+
+    @Test
+    fun continues_a_bullet() {
+        val e = MarkdownEditing.onNewline("- a\n", 4)!!
+        assertEquals("- a\n- ", e.text)
+        assertEquals(6, e.selStart)
+    }
+
+    @Test
+    fun continues_a_numbered_list_incrementing() {
+        assertEquals("1. a\n2. ", MarkdownEditing.onNewline("1. a\n", 5)!!.text)
+    }
+
+    @Test
+    fun continues_a_checkbox_unchecked() {
+        assertEquals("- [x] done\n- [ ] ", MarkdownEditing.onNewline("- [x] done\n", 11)!!.text)
+    }
+
+    @Test
+    fun empty_item_exits_the_list() {
+        assertEquals("", MarkdownEditing.onNewline("- \n", 3)!!.text)
+    }
+
+    @Test
+    fun returns_null_for_a_non_list_line() {
+        assertNull(MarkdownEditing.onNewline("hello\n", 6))
     }
 }

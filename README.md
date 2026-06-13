@@ -42,18 +42,28 @@ the **Known limitations** section.
 - **Markdown** — Notes are markdown (as Nextcloud stores them). The editor has a
   formatting toolbar (headings, bold, italic, bullet/numbered/checklist, quote,
   indent/outdent) and an edit⇄preview toggle. List cards and the editor preview
-  render markdown; see `markdown/` (`MarkdownEditing`, `parseMarkdownBlocks`,
-  `MarkdownText`) — dependency-free, unit-tested.
+  render markdown; **checkboxes are tappable** (toggle directly on a card or in
+  preview) and pressing **Enter auto-continues lists**. See `markdown/`
+  (`MarkdownEditing`, `parseMarkdownBlocks`, `MarkdownText`) — dependency-free,
+  unit-tested.
 - **QR login** — "Scan login QR code" reads Nextcloud's `nc://login/...` code
   (server + user + app password) and connects, via CameraX + ZXing (offline, no
   Google Play dependency). See `qr/`.
-- **Editor** — title + body with autosave (debounced 400 ms), pin, share, delete,
-  label editing, "Edited x ago" footer.
+- **Editor** — title + body with autosave (debounced 400 ms), pin, share, delete
+  (with an Undo snackbar), label editing, "Edited x ago" footer.
+- **Settings** — theme (System/Light/Dark/AMOLED black), font size, grid columns
+  (1–3), and sort order. Theme and font scale apply app-wide via the Material 3
+  typography.
+- **Share into NextKeep** — share text from any app to create a note.
+- **App lock** — optional biometric / device-credential lock (`BiometricPrompt`),
+  re-locking when the app is backgrounded.
 - **Sync** — pull-to-refresh two-way sync; local-pending changes win and are pushed
-  first, deletes use tombstones, notes deleted on the server while edited locally
-  are recreated so no edits are lost. Unchanged server notes (matched by etag, or
-  by modified-time on servers that omit etags) are skipped on pull, so the local
-  title/body split stays stable across syncs.
+  first, deletes use tombstones (with an Undo window before they're pushed), notes
+  deleted on the server while edited locally are recreated so no edits are lost.
+  Unchanged notes are skipped on pull (collection ETag → 304, plus per-note etag/
+  modified checks). Edits use `If-Match`; a 412 conflict keeps **both** versions
+  (the server's, plus the local edit as a "(conflict)" copy). A WorkManager job
+  syncs periodically in the background.
 
 ## Login
 
@@ -62,8 +72,9 @@ the **Known limitations** section.
    and the app password — or tap **Scan login QR code** and scan a Nextcloud login
    QR code to fill and connect in one step.
 
-The Notes app must be installed on the server (API v1). Credentials are stored in
-app-private DataStore.
+The Notes app must be installed on the server (API v1). Credentials are encrypted
+with an Android Keystore (AES-GCM) key before being written to app-private DataStore
+(see `CryptoManager`).
 
 ## Building
 
@@ -99,11 +110,15 @@ If that file is absent, the release build falls back to the debug key.
 ## Architecture
 
 ```
-ui/            Compose screens + ViewModels (login, notes grid, editor)
+ui/            Compose screens + ViewModels (login, notes grid, editor, settings, lock)
+markdown/      Editing transforms, block parser, and renderer (dependency-free)
+qr/            nc://login parser + CameraX/ZXing QR scanner
 data/
   local/       Room: NoteEntity (with dirty/deleted flags), NoteDao, NotesDatabase
   remote/      Retrofit client for the Notes API v1, basic-auth interceptor
-  AccountStore DataStore-backed credentials
+  AccountStore  credentials, encrypted via CryptoManager (Keystore AES-GCM)
+  SettingsStore DataStore-backed app settings
+  SyncWorker    periodic background sync (WorkManager)
   NotesRepository  offline-first store + two-way sync engine
 ```
 
@@ -118,18 +133,20 @@ Notable design points:
 
 ## Known limitations / future work
 
-- **Conflict resolution is last-write-wins.** A note edited both offline and on the
-  server since the last sync resolves in favor of the local copy on push; the
-  server edit is overwritten. Using the API's `If-Match` etag to detect 412
-  conflicts would make this safe.
-- **Credentials are stored in app-private DataStore, unencrypted.** Reasonable on a
-  non-rooted device; `EncryptedSharedPreferences`/`AccountManager` would harden it.
+- **Bound by the Notes API v1.** A note is a markdown file with title/category/
+  favorite/modified — so there is no server support for per-note color, reminders,
+  image attachments, or archive. Those Keep features would be local-only or aren't
+  feasible.
 - **Release builds are HTTPS-only** (`usesCleartextTraffic=false`); a debug-only
   manifest overlay (`src/debug/AndroidManifest.xml`) re-enables cleartext so debug
   builds can hit a local test server. If you self-host on plain `http`, build debug
   or relax the release flag.
-- **No background sync.** Sync runs on login, on opening the list, on pull-to-refresh,
-  and when leaving the editor. A WorkManager periodic job would add background sync.
+- **App lock needs Android 12+ for the credential fallback** (`BIOMETRIC_WEAK or
+  DEVICE_CREDENTIAL`); on older versions the toggle is unavailable unless a biometric
+  is enrolled.
+- **The markdown renderer covers a common subset** (headings, lists, task lists,
+  quotes, fenced code, dividers, inline bold/italic/code/strikethrough/links) — no
+  tables or deeply nested lists.
 
 ## Tests
 
