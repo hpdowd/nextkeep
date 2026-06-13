@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Monochrome layer for Android 13+ themed icons. The system uses this shape's
+  alpha as a mask and tints it with the user's Material You palette, so the
+  launcher icon matches the system theme. Drawn as a filled note page with three
+  text lines punched out (evenOdd).
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#000000"
+        android:fillType="evenOdd"
+        android:pathData="M40,30 H68 A6,6 0 0 1 74,36 V72 A6,6 0 0 1 68,78 H40 A6,6 0 0 1 34,72 V36 A6,6 0 0 1 40,30 Z M40,45 H68 V49 H40 Z M40,55 H68 V59 H40 Z M40,65 H60 V69 H40 Z" />
+</vector>

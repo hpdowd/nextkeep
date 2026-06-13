@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">NextKeep</string>
+    <string name="search_your_notes">Search your notes</string>
+    <string name="notes_you_add">Notes you add appear here</string>
+    <string name="pinned">Pinned</string>
+    <string name="others">Others</string>
+    <string name="title_hint">Title</string>
+    <string name="note_hint">Note</string>
+</resources>
