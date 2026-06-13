@@ -78,14 +78,49 @@ with an Android Keystore (AES-GCM) key before being written to app-private DataS
 
 ## Building
 
-Requirements: JDK 17 or 21 (NOT 26 — see `gradle.properties`, which pins
-`org.gradle.java.home` to `/usr/lib/jvm/java-21-openjdk`; adjust for your machine),
-Android SDK (path in `local.properties`).
+Requirements: **JDK 17–21** (newer JDKs such as 25/26 are rejected by AGP 8.7) and the
+**Android SDK** (platform 35, build-tools 35.0.0). Neither path is committed — both are
+machine-specific, so set them once per machine:
+
+- **JDK** — if your system `java` is already 17–21, you're done. If it's newer (e.g.
+  JDK 26), don't edit the committed `gradle.properties`; point Gradle's daemon at a
+  17–21 JDK in your **user-global** config, `~/.gradle/gradle.properties`:
+  ```properties
+  org.gradle.java.home=/path/to/jdk-21
+  ```
+  Gradle's launcher still starts under your newer default JDK, but the build runs on this one.
+- **Android SDK** — create `local.properties` (gitignored) at the repo root:
+  ```properties
+  sdk.dir=/home/you/Android/Sdk
+  ```
 
 ```sh
 ./gradlew :app:assembleDebug
 # APK: app/build/outputs/apk/debug/app-debug.apk
 adb install app/build/outputs/apk/debug/app-debug.apk
+```
+
+### Toolchain setup on a fresh Linux machine
+
+No Android Studio required — a JDK plus the command-line SDK tools is enough:
+
+```sh
+# 1) A JDK 17–21. Use your distro package, SDKMAN!, or a Temurin tarball. E.g. Arch:
+sudo pacman -S jdk21-openjdk            # -> /usr/lib/jvm/java-21-openjdk
+#    If your default java is newer, add its path to ~/.gradle/gradle.properties
+#    as org.gradle.java.home=... (see above).
+
+# 2) Android command-line tools -> ~/Android/Sdk  (grab the current zip URL from
+#    https://developer.android.com/studio#command-tools)
+mkdir -p ~/Android/Sdk/cmdline-tools && cd ~/Android/Sdk/cmdline-tools
+curl -fLO https://dl.google.com/android/repository/commandlinetools-linux-XXXXXXXX_latest.zip
+unzip -q commandlinetools-linux-*_latest.zip && mv cmdline-tools latest
+yes | latest/bin/sdkmanager --sdk_root="$HOME/Android/Sdk" --licenses
+latest/bin/sdkmanager --sdk_root="$HOME/Android/Sdk" \
+  "platform-tools" "platforms;android-35" "build-tools;35.0.0"
+
+# 3) Point the build at the SDK
+echo "sdk.dir=$HOME/Android/Sdk" > local.properties
 ```
 
 ### Building a release APK
@@ -106,6 +141,19 @@ If that file is absent, the release build falls back to the debug key.
 ./gradlew :app:assembleRelease
 # APK: app/build/outputs/apk/release/app-release.apk
 ```
+
+### Continuous builds (download the APK without a local toolchain)
+
+`.github/workflows/build.yml` builds the app in the cloud on every push and on version
+tags, then publishes the APK so you can download it from a browser on any machine — no
+JDK or Android SDK needed locally. The same file runs on two backends:
+
+- **GitHub** — push or mirror the repo to GitHub.com; it builds on free hosted runners.
+  Grab the APK from the run's **Artifacts**, and pushing a tag like `v1.0` also attaches
+  it to a **Release**.
+- **Gitea / Forgejo Actions** — a self-hosted Gitea/Forgejo reads the same
+  `.github/workflows/`. It needs Actions enabled and a registered `act_runner` (Docker);
+  then the APK is downloadable from the run's Artifacts.
 
 ## Architecture
 
