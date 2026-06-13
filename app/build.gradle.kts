@@ -17,6 +17,26 @@ val keystoreProperties = Properties().apply {
     if (keystorePropertiesFile.exists()) load(FileInputStream(keystorePropertiesFile))
 }
 
+// Version is derived from git so each build's version matches the tag it was cut from.
+// versionName: `git describe` — the exact tag on a tagged commit ("v1.0" -> "1.0"), else
+// "<tag>-<n>-g<hash>", or a short hash before the first tag; "-dev" if the tree is dirty.
+// versionCode: commit count (monotonic). Both fall back gracefully when git is unavailable
+// (e.g. building from a source archive). CI must checkout with fetch-depth: 0 for tags.
+fun git(vararg args: String): String? = try {
+    val process = ProcessBuilder("git", *args)
+        .directory(rootDir)
+        .redirectErrorStream(true)
+        .start()
+    val output = process.inputStream.bufferedReader().use { it.readText() }.trim()
+    if (process.waitFor() == 0 && output.isNotEmpty()) output else null
+} catch (e: Exception) {
+    null
+}
+
+val gitVersionName: String =
+    git("describe", "--tags", "--always", "--dirty=-dev")?.removePrefix("v") ?: "1.0-dev"
+val gitVersionCode: Int = git("rev-list", "--count", "HEAD")?.toIntOrNull() ?: 1
+
 android {
     namespace = "ie.dowd.nextkeep"
     compileSdk = 35
@@ -25,8 +45,8 @@ android {
         applicationId = "ie.dowd.nextkeep"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = gitVersionCode
+        versionName = gitVersionName
     }
 
     signingConfigs {
@@ -59,6 +79,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 
