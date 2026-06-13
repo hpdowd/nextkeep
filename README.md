@@ -2,6 +2,8 @@
 
 A clean, Google Keep–styled Android client for [Nextcloud Notes](https://github.com/nextcloud/notes).
 
+> **Canonical source:** [git.henrydowd.dev/henry/nextkeep](https://git.henrydowd.dev/henry/nextkeep). The GitHub repo is a mirror.
+
 Offline-first: all reads come from a local Room database; edits are saved locally
 immediately and synced to the server in the background. Works fully offline and
 pushes queued changes on the next sync.
