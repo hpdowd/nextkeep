@@ -56,6 +56,10 @@ the **Known limitations** section.
 - **Settings** — theme (System/Light/Dark/AMOLED black), font size, grid columns
   (1–3), and sort order. Theme and font scale apply app-wide via the Material 3
   typography.
+- **In-app updates** — distributed outside any app store, NextKeep updates itself:
+  Settings → **Check for updates** fetches the latest signed release from GitHub,
+  and downloads + installs it in place. See **Versioning and releases** below and
+  `data/Updater.kt`.
 - **Share into NextKeep** — share text from any app to create a note.
 - **App lock** — optional biometric / device-credential lock (`BiometricPrompt`),
   re-locking when the app is backgrounded.
@@ -157,6 +161,56 @@ JDK or Android SDK needed locally. The same file runs on two backends:
   `.github/workflows/`. It needs Actions enabled and a registered `act_runner` (Docker);
   then the APK is downloadable from the run's Artifacts.
 
+## Versioning and releases
+
+Both version fields are derived from **git at build time** (see `app/build.gradle.kts`),
+so a build's version always matches the commit or tag it was cut from — there is nothing
+to bump by hand:
+
+- **`versionName`** — the human version shown in Settings → About — is
+  `git describe --tags --always --dirty=-dev` with the leading `v` stripped:
+  - on a tagged commit → the exact tag, e.g. `v1.1` → **`1.1`**;
+  - a few commits past a tag → `<tag>-<commits>-g<hash>`, e.g. **`1.1-3-g1a2b3c4`**;
+  - before the first tag → a short commit hash; with uncommitted changes → a **`-dev`** suffix.
+- **`versionCode`** — the integer Android actually compares for "is this an upgrade" — is
+  `git rev-list --count HEAD`, the commit count. It increases with every commit, so a
+  later build always outranks an earlier one.
+
+Both fall back gracefully (`1.0-dev` / `1`) when git is unavailable, e.g. building from a
+source archive. CI checks out with full history (`fetch-depth: 0`) so the tags resolve.
+
+### Cutting a release
+
+**A release is generated when you push a `v*` tag.** That fires
+`.github/workflows/build.yml`, which builds the debug + release APKs and attaches them to
+a **GitHub Release** named after the tag. (Pushing any branch or opening a PR builds the
+APKs too, but only as downloadable **artifacts** — a `v*` tag is what publishes a Release.)
+
+```sh
+# from a clean main containing the changes you want to ship:
+git push origin main          # publish the commits (origin is Gitea; it mirrors to GitHub)
+git tag v1.2
+git push origin v1.2          # the tag triggers the release build + publishes the APKs
+```
+
+### How in-app updates use this
+
+For an installed app to update **in place**, the new APK must carry the **same
+signature** — so release builds are signed with a stable key (from `keystore.properties`
+locally, or the `RELEASE_KEYSTORE_*` CI secrets; without them CI falls back to the debug
+key, which *cannot* update a stable-signed install).
+
+NextKeep's updater (`data/Updater.kt`) asks the GitHub mirror for the latest release,
+compares its tag against the running `versionName`, and — if newer — downloads that
+release's **`app-release.apk`** (never the debug APK, which has the wrong signature) and
+hands it to the system installer. The comparison looks only at the **leading numeric
+series** (`1.2` > `1.1`), ignoring `-rc1` / git-describe / `-dev` suffixes, so a dev build
+sitting a few commits past the latest tag is not offered a pointless "update" back to it.
+
+> The first **stable-signed** release is the first `v*` tag built after the stable-signing
+> commit with the CI secrets set; earlier debug-signed builds (`v1.0`, `v1.1-rc1`) must be
+> replaced by a one-time manual reinstall before in-place updates take over.
+
 ## Architecture
 
 ```
@@ -168,6 +222,7 @@ data/
   remote/      Retrofit client for the Notes API v1, basic-auth interceptor
   AccountStore  credentials, encrypted via CryptoManager (Keystore AES-GCM)
   SettingsStore DataStore-backed app settings
+  Updater       in-app updates: latest GitHub release -> download + install the APK
   SyncWorker    periodic background sync (WorkManager)
   NotesRepository  offline-first store + two-way sync engine
 ```
@@ -197,6 +252,9 @@ Notable design points:
 - **The markdown renderer covers a common subset** (headings, lists, task lists,
   quotes, fenced code, dividers, inline bold/italic/code/strikethrough/links) — no
   tables or deeply nested lists.
+- **In-app updates need sideload permission and signature continuity.** The first run
+  of the installer prompts to allow installing apps from NextKeep, and only same-key
+  (stable-signed) releases can update in place — see **Versioning and releases**.
 
 ## Tests
 

@@ -59,6 +59,7 @@ data/
   AccountStore     credentials, encrypted via CryptoManager (Keystore AES-GCM)
   SettingsStore    DataStore app settings (theme/font/columns/sort/app-lock)
   SyncWorker       WorkManager periodic background sync
+  Updater          in-app updates: GitHub latest release -> download app-release.apk -> installer
 ```
 
 All reads come from Room (`repository.notes` Flow). Edits write locally first
@@ -89,13 +90,32 @@ theme (driven by settings), the app-lock gate (ProcessLifecycle re-lock), and th
 - **Strings**: most user-facing text is still inline in composables (not all extracted
   to `strings.xml`) — fine to extract, but there's no full localization yet.
 
+## Versioning & releases
+
+- **Version is derived from git** in `app/build.gradle.kts` — never bump it by hand.
+  `versionName` = `git describe` (tagged commit → "1.1"; past a tag → "1.1-3-g<hash>";
+  dirty → "-dev"); `versionCode` = commit count (monotonic). CI checks out with
+  `fetch-depth: 0` so tags resolve.
+- **A release is published when a `v*` tag is pushed.** `.github/workflows/build.yml`
+  builds debug + release APKs and attaches them to a GitHub Release. `origin` is Gitea
+  (`git.henrydowd.dev/henry/NextKeep`), push-mirrored to GitHub where Actions runs and
+  the updater pulls from (`hpdowd/nextkeep`). Cut one: `git tag v1.2 && git push origin v1.2`.
+- **In-app updater** (`data/Updater.kt`, Settings → Check for updates) reads the latest
+  GitHub release, compares the tag's **numeric series** against `versionName` (ignoring
+  `-rc`/git-describe/`-dev` suffixes, so a dev build past the tag isn't offered a
+  downgrade), and installs the release-signed **`app-release.apk`** in place. In-place
+  updates need **signature continuity** — only `app-release.apk` (stable key from
+  `keystore.properties` / CI secrets), never `app-debug.apk`. Pure compare + asset pick
+  are unit-tested (`UpdaterTest`); FileProvider + `REQUEST_INSTALL_PACKAGES` wire the install.
+
 ## Testing
 
 `testDebugUnitTest` covers the pure logic, which is where the bugs hide:
 `ContentMappingTest` (title/body round-trip), `QrLoginParseTest`, `MarkdownTest`
-(toolbar transforms, block parser, task toggle, list auto-continue). When adding logic
-to `markdown/` or the repository's content handling, add a unit test — UI/sync wiring is
-then verified on the emulator against the mock server.
+(toolbar transforms, block parser, task toggle, list auto-continue), `UpdaterTest`
+(version-series compare, release-APK selection). When adding logic to `markdown/`, the
+repository's content handling, or the updater, add a unit test — UI/sync wiring is then
+verified on the emulator against the mock server.
 
 This project was written end-to-end by Claude in Claude Code; keep that bar — small,
 documented, tested changes.
