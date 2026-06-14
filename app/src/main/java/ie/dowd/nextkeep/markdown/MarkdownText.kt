@@ -39,6 +39,8 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import ie.dowd.nextkeep.ui.theme.LocalHeadingScale
 
 /**
  * Renders the common markdown subset (headings, lists, task lists, quotes,
@@ -51,6 +53,7 @@ fun MarkdownText(
     markdown: String,
     modifier: Modifier = Modifier,
     maxBlocks: Int = Int.MAX_VALUE,
+    previewLines: Int = 4,
     onToggleTask: ((Int) -> Unit)? = null,
 ) {
     val parsed = remember(markdown) { parseMarkdownBlocks(markdown) }
@@ -66,7 +69,7 @@ fun MarkdownText(
     val onSurfaceVariant = MaterialTheme.colorScheme.onSurfaceVariant
     // In preview mode (maxBlocks capped) also cap each block's lines, so a single
     // long paragraph or code block can't make a giant card.
-    val bodyLines = if (maxBlocks == Int.MAX_VALUE) Int.MAX_VALUE else 4
+    val bodyLines = if (maxBlocks == Int.MAX_VALUE) Int.MAX_VALUE else previewLines
     val headingLines = if (maxBlocks == Int.MAX_VALUE) Int.MAX_VALUE else 2
 
     Column(modifier, verticalArrangement = Arrangement.spacedBy(2.dp)) {
@@ -189,12 +192,24 @@ private fun MarkerRow(indent: Int, marker: String, content: @Composable () -> Un
 }
 
 @Composable
-private fun headingStyle(level: Int): TextStyle = when (level) {
-    1 -> MaterialTheme.typography.headlineMedium
-    2 -> MaterialTheme.typography.headlineSmall
-    3 -> MaterialTheme.typography.titleLarge
-    else -> MaterialTheme.typography.titleMedium
-}.copy(fontWeight = FontWeight.SemiBold)
+private fun headingStyle(level: Int): TextStyle {
+    // Sized relative to body text (so headings follow the Font size setting) and
+    // scaled by the Heading size setting. Deliberately smaller than the M3
+    // headline styles, which looked oversized on note cards and in the editor.
+    val bodySize = MaterialTheme.typography.bodyLarge.fontSize.value
+    val multiplier = when (level) {
+        1 -> 1.35f
+        2 -> 1.2f
+        3 -> 1.08f
+        else -> 1f
+    }
+    val size = bodySize * multiplier * LocalHeadingScale.current
+    return MaterialTheme.typography.titleLarge.copy(
+        fontWeight = FontWeight.SemiBold,
+        fontSize = size.sp,
+        lineHeight = (size * 1.3f).sp,
+    )
+}
 
 /** Inline scanner: bold, italic, code, strikethrough, and links. Non-nested. */
 private fun buildInline(text: String, linkColor: Color, codeBg: Color): AnnotatedString =

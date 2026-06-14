@@ -23,11 +23,15 @@ data class NoteDto(
 )
 
 /**
- * Writable fields of the Notes API v1. `title` is server-generated from the
- * first line of `content` and cannot be set directly.
+ * Writable fields of the Notes API v1. `title` is read/write and becomes the
+ * note's filename (the server sanitizes it for the filesystem). We send it
+ * explicitly so the file is named after the note's title rather than whatever
+ * the server would otherwise infer; `content` still carries the title as its
+ * first line, matching how the Notes app stores it.
  */
 @Serializable
 data class NotePayload(
+    val title: String,
     val content: String,
     val category: String,
     val favorite: Boolean,

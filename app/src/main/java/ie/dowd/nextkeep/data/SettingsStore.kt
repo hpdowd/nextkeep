@@ -19,9 +19,19 @@ enum class SortOrder { MODIFIED, TITLE }
 /** Font scale presets applied to the whole app's typography. */
 enum class FontSize(val scale: Float) { XSMALL(0.72f), SMALL(0.85f), MEDIUM(1.0f), LARGE(1.18f) }
 
+/** Independent scale for markdown headings, applied on top of [FontSize]. */
+enum class HeadingSize(val scale: Float) { SMALL(0.85f), MEDIUM(1.0f), LARGE(1.2f) }
+
+/** How much of a note's body shows on a list card: block count + lines per block. */
+enum class PreviewLength(val maxBlocks: Int, val lines: Int) {
+    SHORT(2, 2), MEDIUM(4, 3), LONG(8, 5)
+}
+
 data class Settings(
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
     val fontSize: FontSize = FontSize.MEDIUM,
+    val headingSize: HeadingSize = HeadingSize.MEDIUM,
+    val previewLength: PreviewLength = PreviewLength.MEDIUM,
     val gridColumns: Int = 2,
     val sortOrder: SortOrder = SortOrder.MODIFIED,
     val appLock: Boolean = false,
@@ -31,6 +41,8 @@ class SettingsStore(private val context: Context) {
 
     private val keyTheme = stringPreferencesKey("theme_mode")
     private val keyFont = stringPreferencesKey("font_size")
+    private val keyHeading = stringPreferencesKey("heading_size")
+    private val keyPreview = stringPreferencesKey("preview_length")
     private val keyColumns = intPreferencesKey("grid_columns")
     private val keySort = stringPreferencesKey("sort_order")
     private val keyAppLock = booleanPreferencesKey("app_lock")
@@ -39,6 +51,8 @@ class SettingsStore(private val context: Context) {
         Settings(
             themeMode = p[keyTheme]?.let { runCatching { ThemeMode.valueOf(it) }.getOrNull() } ?: ThemeMode.SYSTEM,
             fontSize = p[keyFont]?.let { runCatching { FontSize.valueOf(it) }.getOrNull() } ?: FontSize.MEDIUM,
+            headingSize = p[keyHeading]?.let { runCatching { HeadingSize.valueOf(it) }.getOrNull() } ?: HeadingSize.MEDIUM,
+            previewLength = p[keyPreview]?.let { runCatching { PreviewLength.valueOf(it) }.getOrNull() } ?: PreviewLength.MEDIUM,
             gridColumns = p[keyColumns] ?: 2,
             sortOrder = p[keySort]?.let { runCatching { SortOrder.valueOf(it) }.getOrNull() } ?: SortOrder.MODIFIED,
             appLock = p[keyAppLock] ?: false,
@@ -50,6 +64,12 @@ class SettingsStore(private val context: Context) {
 
     suspend fun setFontSize(size: FontSize) =
         context.settingsDataStore.edit { it[keyFont] = size.name }
+
+    suspend fun setHeadingSize(size: HeadingSize) =
+        context.settingsDataStore.edit { it[keyHeading] = size.name }
+
+    suspend fun setPreviewLength(length: PreviewLength) =
+        context.settingsDataStore.edit { it[keyPreview] = length.name }
 
     suspend fun setGridColumns(columns: Int) =
         context.settingsDataStore.edit { it[keyColumns] = columns }

@@ -1,7 +1,11 @@
 package ie.dowd.nextkeep.ui.login
 
 import android.Manifest
+import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
+import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.camera.core.CameraSelector
@@ -36,6 +40,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -62,12 +67,31 @@ fun ScanScreen(
                 PackageManager.PERMISSION_GRANTED
         )
     }
+    // True once we've asked at least once. After a denial the OS won't show the
+    // dialog again, so the prompt then sends the user to app settings instead.
+    var requested by rememberSaveable { mutableStateOf(false) }
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { granted -> hasPermission = granted }
+    // Re-check when returning from the app's settings screen.
+    val settingsLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) {
+        hasPermission = ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) ==
+            PackageManager.PERMISSION_GRANTED
+    }
+
+    fun requestCamera() {
+        if (!requested) {
+            requested = true
+            permissionLauncher.launch(Manifest.permission.CAMERA)
+        } else {
+            settingsLauncher.launch(appSettingsIntent(context))
+        }
+    }
 
     LaunchedEffect(Unit) {
-        if (!hasPermission) permissionLauncher.launch(Manifest.permission.CAMERA)
+        if (!hasPermission) requestCamera()
     }
 
     Box(
@@ -90,7 +114,8 @@ fun ScanScreen(
             )
         } else {
             PermissionPrompt(
-                onGrant = { permissionLauncher.launch(Manifest.permission.CAMERA) },
+                deniedBefore = requested,
+                onGrant = { requestCamera() },
                 modifier = Modifier
                     .align(Alignment.Center)
                     .padding(32.dp),
@@ -171,19 +196,29 @@ private fun BoxScope.ViewfinderOverlay() {
 }
 
 @Composable
-private fun PermissionPrompt(onGrant: () -> Unit, modifier: Modifier = Modifier) {
+private fun PermissionPrompt(deniedBefore: Boolean, onGrant: () -> Unit, modifier: Modifier = Modifier) {
     Column(
         modifier = modifier,
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
         Text(
-            "Camera access is needed to scan a login QR code.",
+            if (deniedBefore) {
+                "Camera access was denied. Enable it for NextKeep in Settings to scan a login QR code."
+            } else {
+                "Camera access is needed to scan a login QR code."
+            },
             color = Color.White,
             textAlign = TextAlign.Center,
             style = MaterialTheme.typography.bodyLarge,
         )
         Spacer(Modifier.height(16.dp))
-        Button(onClick = onGrant) { Text("Allow camera") }
+        Button(onClick = onGrant) { Text(if (deniedBefore) "Open settings" else "Allow camera") }
     }
 }
+
+private fun appSettingsIntent(context: Context): Intent =
+    Intent(
+        Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+        Uri.fromParts("package", context.packageName, null),
+    )

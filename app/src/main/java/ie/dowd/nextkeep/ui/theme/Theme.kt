@@ -10,12 +10,18 @@ import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.isSpecified
 import androidx.compose.ui.unit.sp
 import ie.dowd.nextkeep.data.ThemeMode
+
+/** Multiplier for markdown heading sizes, set from the Heading size setting and
+ *  read by the markdown renderer so headings scale independently of body text. */
+val LocalHeadingScale = staticCompositionLocalOf { 1f }
 
 // Fallback palette for pre-Android 12 devices, modeled on Google Keep:
 // white surfaces, Google blue accents, subtle grey outlines.
@@ -57,6 +63,7 @@ private val DarkColors = darkColorScheme(
 fun NextKeepTheme(
     themeMode: ThemeMode = ThemeMode.SYSTEM,
     fontScale: Float = 1f,
+    headingScale: Float = 1f,
     content: @Composable () -> Unit,
 ) {
     val dark = when (themeMode) {
@@ -86,8 +93,9 @@ fun NextKeepTheme(
     MaterialTheme(
         colorScheme = colorScheme,
         typography = Typography().scaledBy(fontScale),
-        content = content,
-    )
+    ) {
+        CompositionLocalProvider(LocalHeadingScale provides headingScale, content = content)
+    }
 }
 
 /** Scales every text style's size and line height — drives the Font size setting. */

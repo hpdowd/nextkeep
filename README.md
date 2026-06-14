@@ -53,9 +53,9 @@ the **Known limitations** section.
   Google Play dependency). See `qr/`.
 - **Editor** — title + body with autosave (debounced 400 ms), pin, share, delete
   (with an Undo snackbar), label editing, "Edited x ago" footer.
-- **Settings** — theme (System/Light/Dark/AMOLED black), font size, grid columns
-  (1–3), and sort order. Theme and font scale apply app-wide via the Material 3
-  typography.
+- **Settings** — theme (System/Light/Dark/AMOLED black), font size, independent
+  heading size, grid columns (1–3), note-card preview length, and sort order.
+  Theme and font scale apply app-wide via the Material 3 typography.
 - **In-app updates** — distributed outside any app store, NextKeep updates itself:
   Settings → **Check for updates** fetches the latest signed release from GitHub,
   and downloads + installs it in place. See **Versioning and releases** below and
@@ -231,7 +231,9 @@ Notable design points:
 
 - The Notes API derives a note's **title from the first line of content**, so the
   Keep-style separate title field is joined/split transparently during sync
-  (`NotesRepository.joinContent`/`splitContent`).
+  (`NotesRepository.joinContent`/`splitContent`). The sync payload also sends the
+  `title` explicitly (it is read/write in API v1 and becomes the note's filename),
+  so a note's file on the server is named after its title.
 - No DI framework — a small `AppContainer` on the `Application` class; ViewModels
   get it via `viewModelFactory` initializers.
 - Min SDK 26, target SDK 35.

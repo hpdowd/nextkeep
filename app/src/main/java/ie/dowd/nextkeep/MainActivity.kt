@@ -52,7 +52,11 @@ class MainActivity : FragmentActivity() {
             val app = applicationContext as NextKeepApp
             val settings by app.container.settingsStore.settings
                 .collectAsStateWithLifecycle(initialValue = Settings())
-            NextKeepTheme(themeMode = settings.themeMode, fontScale = settings.fontSize.scale) {
+            NextKeepTheme(
+                themeMode = settings.themeMode,
+                fontScale = settings.fontSize.scale,
+                headingScale = settings.headingSize.scale,
+            ) {
                 Surface(modifier = Modifier.fillMaxSize().imePadding()) {
                     AppRoot(
                         appLockEnabled = settings.appLock,

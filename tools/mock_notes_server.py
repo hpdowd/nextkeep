@@ -44,14 +44,16 @@ def seed():
         add_note(content, category, favorite)
 
 
-def add_note(content, category, favorite):
+def add_note(content, category, favorite, title=None):
     global _next_id
+    # The Notes API v1 title is read/write and used as the filename; honor an
+    # explicit one if the client sends it, else derive it from the first line.
     note = {
         "id": _next_id,
         "etag": f"etag{_next_id}-{int(time.time())}",
         "readonly": False,
         "modified": int(time.time()),
-        "title": content.split("\n", 1)[0],
+        "title": title or content.split("\n", 1)[0],
         "category": category,
         "content": content,
         "favorite": favorite,
@@ -96,6 +98,7 @@ class Handler(BaseHTTPRequestHandler):
                 data.get("content", ""),
                 data.get("category", ""),
                 data.get("favorite", False),
+                data.get("title") or None,
             )
             self._send(200, note)
         else:
@@ -113,7 +116,7 @@ class Handler(BaseHTTPRequestHandler):
         content = data.get("content", note["content"])
         note.update(
             content=content,
-            title=content.split("\n", 1)[0],
+            title=data.get("title") or content.split("\n", 1)[0],
             category=data.get("category", note["category"]),
             favorite=data.get("favorite", note["favorite"]),
             modified=int(time.time()),

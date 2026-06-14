@@ -55,6 +55,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import ie.dowd.nextkeep.BuildConfig
 import ie.dowd.nextkeep.data.FontSize
+import ie.dowd.nextkeep.data.HeadingSize
+import ie.dowd.nextkeep.data.PreviewLength
 import ie.dowd.nextkeep.data.SortOrder
 import ie.dowd.nextkeep.data.ThemeMode
 import kotlinx.coroutines.launch
@@ -121,6 +123,13 @@ fun SettingsScreen(
                 onSelect = viewModel::setFontSize,
             )
             ChoiceRow(
+                label = "Heading size",
+                options = HeadingSize.entries,
+                selected = settings.headingSize,
+                name = { it.label() },
+                onSelect = viewModel::setHeadingSize,
+            )
+            ChoiceRow(
                 label = "Columns",
                 options = listOf(1, 2, 3),
                 selected = settings.gridColumns,
@@ -136,6 +145,13 @@ fun SettingsScreen(
                 selected = settings.sortOrder,
                 name = { if (it == SortOrder.MODIFIED) "Recent" else "Title" },
                 onSelect = viewModel::setSortOrder,
+            )
+            ChoiceRow(
+                label = "Card preview",
+                options = PreviewLength.entries,
+                selected = settings.previewLength,
+                name = { it.label() },
+                onSelect = viewModel::setPreviewLength,
             )
 
             SectionDivider()
@@ -394,4 +410,16 @@ private fun FontSize.label() = when (this) {
     FontSize.SMALL -> "Small"
     FontSize.MEDIUM -> "Medium"
     FontSize.LARGE -> "Large"
+}
+
+private fun HeadingSize.label() = when (this) {
+    HeadingSize.SMALL -> "Small"
+    HeadingSize.MEDIUM -> "Medium"
+    HeadingSize.LARGE -> "Large"
+}
+
+private fun PreviewLength.label() = when (this) {
+    PreviewLength.SHORT -> "Short"
+    PreviewLength.MEDIUM -> "Medium"
+    PreviewLength.LONG -> "Long"
 }

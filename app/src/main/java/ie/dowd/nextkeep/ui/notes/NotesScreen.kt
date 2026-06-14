@@ -62,6 +62,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import ie.dowd.nextkeep.R
+import ie.dowd.nextkeep.data.PreviewLength
 import ie.dowd.nextkeep.data.local.NoteEntity
 import ie.dowd.nextkeep.markdown.MarkdownText
 import ie.dowd.nextkeep.markdown.markdownToPlainText
@@ -187,7 +188,7 @@ private fun NotesGrid(
                 SectionLabel(stringResource(R.string.pinned))
             }
             items(state.pinned, key = { "p${it.localId}" }) { note ->
-                NoteCard(note, darkTheme, onToggleTask = { onToggleTask(note.localId, it) }) { onOpenNote(note.localId) }
+                NoteCard(note, darkTheme, state.previewLength, onToggleTask = { onToggleTask(note.localId, it) }) { onOpenNote(note.localId) }
             }
             if (state.others.isNotEmpty()) {
                 item(span = StaggeredGridItemSpan.FullLine) {
@@ -196,7 +197,7 @@ private fun NotesGrid(
             }
         }
         items(state.others, key = { "o${it.localId}" }) { note ->
-            NoteCard(note, darkTheme, onToggleTask = { onToggleTask(note.localId, it) }) { onOpenNote(note.localId) }
+            NoteCard(note, darkTheme, state.previewLength, onToggleTask = { onToggleTask(note.localId, it) }) { onOpenNote(note.localId) }
         }
     }
 }
@@ -212,7 +213,7 @@ private fun SectionLabel(text: String) {
 }
 
 @Composable
-private fun NoteCard(note: NoteEntity, darkTheme: Boolean, onToggleTask: (Int) -> Unit, onClick: () -> Unit) {
+private fun NoteCard(note: NoteEntity, darkTheme: Boolean, previewLength: PreviewLength, onToggleTask: (Int) -> Unit, onClick: () -> Unit) {
     val tint = categoryColor(note.category, darkTheme)
     // Card body renders markdown (capped); the title stays a clean bold line.
     val previewTitle = remember(note.title) { markdownToPlainText(note.title) }
@@ -237,7 +238,12 @@ private fun NoteCard(note: NoteEntity, darkTheme: Boolean, onToggleTask: (Int) -
                 if (note.body.isNotBlank()) Spacer(Modifier.height(6.dp))
             }
             if (note.body.isNotBlank()) {
-                MarkdownText(note.body, maxBlocks = 6, onToggleTask = onToggleTask)
+                MarkdownText(
+                    note.body,
+                    maxBlocks = previewLength.maxBlocks,
+                    previewLines = previewLength.lines,
+                    onToggleTask = onToggleTask,
+                )
             }
             if (note.category.isNotBlank()) {
                 Spacer(Modifier.height(10.dp))

@@ -57,7 +57,7 @@ data/
   remote/  Retrofit Notes API v1 + basic-auth interceptor (ApiClient)
   NotesRepository  offline-first store + two-way sync engine (the heart of the app)
   AccountStore     credentials, encrypted via CryptoManager (Keystore AES-GCM)
-  SettingsStore    DataStore app settings (theme/font/columns/sort/app-lock)
+  SettingsStore    DataStore app settings (theme/font/heading/preview/columns/sort/app-lock)
   SyncWorker       WorkManager periodic background sync
   Updater          in-app updates: GitHub latest release -> download app-release.apk -> installer
 ```
@@ -74,7 +74,9 @@ theme (driven by settings), the app-lock gate (ProcessLifecycle re-lock), and th
   `NotesRepository.joinContent`/`splitContent` convert. They use `isEmpty` (not
   `isBlank`) and never trim, so a round-trip is byte-exact. On pull, notes unchanged
   server-side are skipped (`isUnchanged`: etag, falling back to `modified`) to keep the
-  local split stable — **do not "simplify" this away.**
+  local split stable — **do not "simplify" this away.** The push payload also sends
+  `title` explicitly (read/write in API v1, and the note's filename) so the server names
+  the file after the title; pull still derives title/body from `content` via `splitContent`.
 - **Sync model:** `dirty` = local changes to push; `deleted` = tombstone (kept until the
   delete is pushed, which is what makes Undo work). Push-dirty-then-pull, guarded by a
   `Mutex`. Conflicts use `If-Match`; a 412 keeps **both** copies (server keeps the id,

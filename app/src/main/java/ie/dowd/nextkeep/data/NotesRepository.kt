@@ -204,6 +204,7 @@ class NotesRepository(
         (dto.etag.isNotBlank() && dto.etag == existing.etag) || dto.modified == existing.modified
 
     private fun payloadOf(note: NoteEntity) = NotePayload(
+        title = note.title,
         content = joinContent(note.title, note.body),
         category = note.category,
         favorite = note.favorite,

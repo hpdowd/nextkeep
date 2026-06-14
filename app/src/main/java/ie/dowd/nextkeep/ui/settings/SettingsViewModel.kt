@@ -8,7 +8,9 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import ie.dowd.nextkeep.NextKeepApp
 import ie.dowd.nextkeep.data.AccountStore
 import ie.dowd.nextkeep.data.FontSize
+import ie.dowd.nextkeep.data.HeadingSize
 import ie.dowd.nextkeep.data.NotesRepository
+import ie.dowd.nextkeep.data.PreviewLength
 import ie.dowd.nextkeep.data.Settings
 import ie.dowd.nextkeep.data.SettingsStore
 import ie.dowd.nextkeep.data.SortOrder
@@ -56,6 +58,8 @@ class SettingsViewModel(
 
     fun setTheme(mode: ThemeMode) = viewModelScope.launch { settingsStore.setThemeMode(mode) }
     fun setFontSize(size: FontSize) = viewModelScope.launch { settingsStore.setFontSize(size) }
+    fun setHeadingSize(size: HeadingSize) = viewModelScope.launch { settingsStore.setHeadingSize(size) }
+    fun setPreviewLength(length: PreviewLength) = viewModelScope.launch { settingsStore.setPreviewLength(length) }
     fun setColumns(columns: Int) = viewModelScope.launch { settingsStore.setGridColumns(columns) }
     fun setSortOrder(order: SortOrder) = viewModelScope.launch { settingsStore.setSortOrder(order) }
     fun setAppLock(enabled: Boolean) = viewModelScope.launch { settingsStore.setAppLock(enabled) }

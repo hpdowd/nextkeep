@@ -8,6 +8,7 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import ie.dowd.nextkeep.NextKeepApp
 import ie.dowd.nextkeep.data.AccountStore
 import ie.dowd.nextkeep.data.NotesRepository
+import ie.dowd.nextkeep.data.PreviewLength
 import ie.dowd.nextkeep.data.SettingsStore
 import ie.dowd.nextkeep.data.SortOrder
 import ie.dowd.nextkeep.data.local.NoteEntity
@@ -28,6 +29,7 @@ data class NotesUiState(
     val selectedCategory: String? = null,
     val query: String = "",
     val columns: Int = 2,
+    val previewLength: PreviewLength = PreviewLength.MEDIUM,
     val syncing: Boolean = false,
     val syncError: String? = null,
     val loaded: Boolean = false,
@@ -78,6 +80,7 @@ class NotesViewModel(
             selectedCategory = f.category,
             query = f.query,
             columns = settings.gridColumns,
+            previewLength = settings.previewLength,
             syncing = f.syncing,
             syncError = f.syncError,
             loaded = true,
