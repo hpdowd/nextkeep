@@ -1,23 +1,34 @@
 package ie.dowd.nextkeep.ui.settings
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_WEAK
 import androidx.biometric.BiometricManager.Authenticators.DEVICE_CREDENTIAL
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.Logout
+import androidx.compose.material.icons.outlined.CheckCircle
+import androidx.compose.material.icons.outlined.CloudDownload
+import androidx.compose.material.icons.outlined.ErrorOutline
+import androidx.compose.material.icons.outlined.SystemUpdate
+import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
@@ -28,6 +39,7 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -37,6 +49,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -56,9 +69,20 @@ fun SettingsScreen(
     val settings by viewModel.settings.collectAsStateWithLifecycle()
     val account by viewModel.accountName.collectAsStateWithLifecycle()
     val server by viewModel.serverUrl.collectAsStateWithLifecycle()
+    val updateState by viewModel.update.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
+
+    // Installing a downloaded APK needs the "install unknown apps" permission. If
+    // it's missing, send the user to grant it, then install when they return.
+    val installPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult(),
+    ) { if (viewModel.canInstall()) viewModel.install() }
+    val onInstall = {
+        if (viewModel.canInstall()) viewModel.install()
+        else installPermissionLauncher.launch(viewModel.unknownSourcesIntent())
+    }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -175,9 +199,124 @@ fun SettingsScreen(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
             )
+            UpdateSection(
+                state = updateState,
+                onCheck = viewModel::checkForUpdate,
+                onDownload = viewModel::downloadUpdate,
+                onInstall = onInstall,
+            )
         }
     }
 }
+
+@Composable
+private fun UpdateSection(
+    state: UpdateState,
+    onCheck: () -> Unit,
+    onDownload: () -> Unit,
+    onInstall: () -> Unit,
+) {
+    Column(Modifier.padding(horizontal = 20.dp, vertical = 4.dp)) {
+        when (state) {
+            UpdateState.Idle ->
+                OutlinedButton(onClick = onCheck) {
+                    Icon(Icons.Outlined.SystemUpdate, contentDescription = null)
+                    Text("  Check for updates")
+                }
+
+            UpdateState.Checking ->
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                    Text("   Checking for updates…", style = MaterialTheme.typography.bodyMedium)
+                }
+
+            UpdateState.UpToDate ->
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        Icons.Outlined.CheckCircle,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(20.dp),
+                    )
+                    Text("  You're on the latest version", style = MaterialTheme.typography.bodyMedium)
+                    Spacer(Modifier.weight(1f))
+                    TextButton(onClick = onCheck) { Text("Check again") }
+                }
+
+            is UpdateState.Available -> {
+                Text(
+                    "Update available — ${state.release.tag}",
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                if (state.release.notes.isNotBlank()) {
+                    Text(
+                        state.release.notes,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 6,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.padding(top = 4.dp),
+                    )
+                }
+                Button(onClick = onDownload, modifier = Modifier.padding(top = 8.dp)) {
+                    Icon(Icons.Outlined.CloudDownload, contentDescription = null)
+                    Text("  Download${sizeSuffix(state.release.sizeBytes)}")
+                }
+            }
+
+            is UpdateState.Downloading -> {
+                Text(
+                    if (state.progress < 0f) "Downloading…"
+                    else "Downloading… ${(state.progress * 100).toInt()}%",
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                if (state.progress < 0f) {
+                    LinearProgressIndicator(Modifier.fillMaxWidth().padding(top = 8.dp))
+                } else {
+                    LinearProgressIndicator(
+                        progress = { state.progress },
+                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                    )
+                }
+            }
+
+            is UpdateState.Downloaded -> {
+                Text(
+                    "Ready to install — ${state.release.tag}",
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Button(onClick = onInstall, modifier = Modifier.padding(top = 8.dp)) {
+                    Icon(Icons.Outlined.SystemUpdate, contentDescription = null)
+                    Text("  Install")
+                }
+            }
+
+            is UpdateState.Failed -> {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        Icons.Outlined.ErrorOutline,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.size(20.dp),
+                    )
+                    Text(
+                        "  ${state.message}",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
+                OutlinedButton(onClick = onCheck, modifier = Modifier.padding(top = 8.dp)) {
+                    Text("Try again")
+                }
+            }
+        }
+    }
+}
+
+private fun sizeSuffix(bytes: Long): String =
+    if (bytes <= 0L) "" else " · %.1f MB".format(bytes / 1_048_576.0)
 
 @Composable
 private fun <T> ChoiceRow(

@@ -13,17 +13,34 @@ import ie.dowd.nextkeep.data.Settings
 import ie.dowd.nextkeep.data.SettingsStore
 import ie.dowd.nextkeep.data.SortOrder
 import ie.dowd.nextkeep.data.ThemeMode
+import ie.dowd.nextkeep.data.Updater
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.File
+
+/** UI state for the "Check for updates" flow in Settings. */
+sealed interface UpdateState {
+    data object Idle : UpdateState
+    data object Checking : UpdateState
+    data object UpToDate : UpdateState
+    data class Available(val release: Updater.Release) : UpdateState
+    data class Downloading(val progress: Float) : UpdateState
+    data class Downloaded(val release: Updater.Release, val apk: File) : UpdateState
+    data class Failed(val message: String) : UpdateState
+}
 
 class SettingsViewModel(
     private val settingsStore: SettingsStore,
     private val accountStore: AccountStore,
     private val repository: NotesRepository,
+    private val updater: Updater,
 ) : ViewModel() {
 
     val settings = settingsStore.settings
@@ -51,6 +68,50 @@ class SettingsViewModel(
         }
     }
 
+    private val _update = MutableStateFlow<UpdateState>(UpdateState.Idle)
+    val update: StateFlow<UpdateState> = _update.asStateFlow()
+
+    fun checkForUpdate() {
+        // Ignore taps while a check or download is already running.
+        if (_update.value is UpdateState.Checking || _update.value is UpdateState.Downloading) return
+        _update.value = UpdateState.Checking
+        viewModelScope.launch {
+            _update.value = runCatching { updater.fetchLatest() }.fold(
+                onSuccess = { release ->
+                    when {
+                        release == null -> UpdateState.Failed("Couldn't reach the update server")
+                        updater.isUpdateAvailable(release) -> UpdateState.Available(release)
+                        else -> UpdateState.UpToDate
+                    }
+                },
+                onFailure = { UpdateState.Failed(it.message ?: "Update check failed") },
+            )
+        }
+    }
+
+    fun downloadUpdate() {
+        val release = (_update.value as? UpdateState.Available)?.release ?: return
+        _update.value = UpdateState.Downloading(0f)
+        viewModelScope.launch {
+            _update.value = runCatching {
+                updater.download(release) { p -> _update.value = UpdateState.Downloading(p) }
+            }.fold(
+                onSuccess = { UpdateState.Downloaded(release, it) },
+                onFailure = { UpdateState.Failed(it.message ?: "Download failed") },
+            )
+        }
+    }
+
+    fun canInstall(): Boolean = updater.canInstall()
+
+    fun unknownSourcesIntent() = updater.unknownSourcesSettingsIntent()
+
+    /** Install the downloaded APK; no-ops unless a download has finished. */
+    fun install() {
+        val apk = (_update.value as? UpdateState.Downloaded)?.apk ?: return
+        updater.install(apk)
+    }
+
     companion object {
         val Factory = viewModelFactory {
             initializer {
@@ -59,6 +120,7 @@ class SettingsViewModel(
                     app.container.settingsStore,
                     app.container.accountStore,
                     app.container.repository,
+                    app.container.updater,
                 )
             }
         }
