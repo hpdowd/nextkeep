@@ -268,6 +268,8 @@ Notable design points:
   URLs with ports/paths).
 - `MarkdownTest` — the formatting transforms (`MarkdownEditing`), block parser,
   and plain-text stripper.
+- `UpdaterTest` — the in-app updater's version-series comparison (the `v` prefix,
+  rc/git-describe/`-dev` suffixes) and release-APK selection.
 
 For manual testing without a real server, `tools/mock_notes_server.py` is a tiny
 in-memory mock of the Notes API v1 that seeds a few markdown notes:
