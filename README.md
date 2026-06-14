@@ -193,6 +193,8 @@ git tag v1.2
 git push origin v1.2          # the tag triggers the release build + publishes the APKs
 ```
 
+Past releases and their changes are recorded in [CHANGELOG.md](CHANGELOG.md).
+
 ### How in-app updates use this
 
 For an installed app to update **in place**, the new APK must carry the **same
