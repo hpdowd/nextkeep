@@ -98,8 +98,12 @@ fun NextKeepTheme(
     }
 }
 
-/** Scales every text style's size and line height — drives the Font size setting. */
-private fun Typography.scaledBy(factor: Float): Typography {
+/**
+ * Scales every text style's size and line height. Drives the app-wide Font size
+ * setting, and is reused by the editor's pinch-to-zoom (nested over the already
+ * scaled typography, so the two compound).
+ */
+internal fun Typography.scaledBy(factor: Float): Typography {
     if (factor == 1f) return this
     fun TextStyle.scaled(): TextStyle = copy(
         fontSize = (fontSize.value * factor).sp,

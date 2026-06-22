@@ -35,6 +35,7 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
@@ -71,6 +72,11 @@ fun MarkdownText(
     // long paragraph or code block can't make a giant card.
     val bodyLines = if (maxBlocks == Int.MAX_VALUE) Int.MAX_VALUE else previewLines
     val headingLines = if (maxBlocks == Int.MAX_VALUE) Int.MAX_VALUE else 2
+    // Size the checkbox and the gap after it off the body text so they scale with
+    // it — the editor's pinch-zoom and the app-wide Font size setting.
+    val bodyDp = with(LocalDensity.current) { MaterialTheme.typography.bodyLarge.fontSize.toDp() }
+    val checkboxSize = bodyDp * 1.25f
+    val checkboxGap = bodyDp * 0.5f
 
     Column(modifier, verticalArrangement = Arrangement.spacedBy(2.dp)) {
         var taskOrdinal = 0
@@ -121,9 +127,9 @@ fun MarkdownText(
                         if (block.checked) Icons.Outlined.CheckBox else Icons.Outlined.CheckBoxOutlineBlank,
                         contentDescription = null,
                         tint = if (block.checked) MaterialTheme.colorScheme.primary else onSurfaceVariant,
-                        modifier = Modifier.size(20.dp),
+                        modifier = Modifier.size(checkboxSize),
                     )
-                    Spacer(Modifier.width(8.dp))
+                    Spacer(Modifier.width(checkboxGap))
                     Text(
                         buildInline(block.text, linkColor, codeBg),
                         style = MaterialTheme.typography.bodyLarge,
@@ -180,12 +186,15 @@ fun MarkdownText(
 
 @Composable
 private fun MarkerRow(indent: Int, marker: String, content: @Composable () -> Unit) {
-    Row(modifier = Modifier.padding(start = (indent * 16).dp)) {
+    // Indent step and marker column track the body text size so nested lists and
+    // numbered markers stay aligned as the text scales.
+    val bodyDp = with(LocalDensity.current) { MaterialTheme.typography.bodyLarge.fontSize.toDp() }
+    Row(modifier = Modifier.padding(start = bodyDp * indent)) {
         Text(
             marker,
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.width(24.dp),
+            modifier = Modifier.width(bodyDp * 1.5f),
         )
         content()
     }

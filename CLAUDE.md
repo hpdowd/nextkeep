@@ -41,6 +41,11 @@ There is no `gradlew` daemon preference; pass `--no-daemon` in CI-like runs. Pre
   nodes expose text/content-desc); `input keyevent 61`=TAB, `66`=ENTER, `4`=BACK.
   Note: rapid scripted input batches changes, which can defeat per-keystroke logic
   like list auto-continue — pause between an Enter and the next text when testing it.
+- **Multi-touch can't be scripted into Compose** — neither `input` nor synthetic
+  `sendevent` contacts reach the gesture pipeline as a pinch, so the editor's
+  pinch-to-zoom must be checked by hand (real device or a windowed emulator). You can
+  still verify the *scaling* path by temporarily seeding `noteFontScale` in
+  `EditorViewModel`.
 
 ## Architecture
 
@@ -57,7 +62,7 @@ data/
   remote/  Retrofit Notes API v1 + basic-auth interceptor (ApiClient)
   NotesRepository  offline-first store + two-way sync engine (the heart of the app)
   AccountStore     credentials, encrypted via CryptoManager (Keystore AES-GCM)
-  SettingsStore    DataStore app settings (theme/font/heading/preview/columns/sort/app-lock)
+  SettingsStore    DataStore app settings (theme/font/heading/preview/note-zoom/columns/sort/app-lock)
   SyncWorker       WorkManager periodic background sync
   Updater          in-app updates: GitHub latest release -> download app-release.apk -> installer
 ```
@@ -85,7 +90,15 @@ theme (driven by settings), the app-lock gate (ProcessLifecycle re-lock), and th
   Block parsing (`parseMarkdownBlocks`) and editing transforms (`MarkdownEditing`) are
   pure and must stay unit-testable (no Compose types). `MarkdownText` is the Compose
   renderer; tappable checkboxes map an ordinal back to the Nth task line via
-  `MarkdownEditing.toggleTaskAt`.
+  `MarkdownEditing.toggleTaskAt`. `MarkdownText` sizes its checkbox/list markers off
+  `bodyLarge.fontSize` (not fixed dp) so they track the text at any scale.
+- **Editor pinch-to-zoom.** The note content is wrapped in a nested `MaterialTheme`
+  whose typography is `Typography.scaledBy(noteFontScale)` (in `theme/`), stacked over
+  the app-wide font scale — so the two multiply. `noteFontScale` is a persisted
+  `SettingsStore` float (`MIN/MAX_NOTE_FONT_SCALE`), driven by `EditorViewModel.onZoom`.
+  The gesture (`detectPinchZoom` in `EditorScreen`) is **two-finger only** and sits
+  *inner* of the scroll, so single-finger scroll/selection still work (see Local
+  testing for why the gesture can't be scripted).
 - **Never commit secrets.** `keystore.properties`, `*.jks`, `local.properties`, and
   `*.apk` are gitignored. Release signing reads `keystore.properties`; absent it, the
   release build falls back to the debug key.

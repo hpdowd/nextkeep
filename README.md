@@ -53,9 +53,15 @@ the **Known limitations** section.
   Google Play dependency). See `qr/`.
 - **Editor** — title + body with autosave (debounced 400 ms), pin, share, delete
   (with an Undo snackbar), label editing, "Edited x ago" footer.
+- **Pinch to zoom** — a two-finger pinch in the editor (preview *or* edit) scales
+  the note's text up or down, with a brief "120%" indicator. The level persists and
+  is *relative* to the app-wide font size (it multiplies on top), so it's a per-read
+  comfort zoom that leaves the rest of the app — including the note grid — untouched.
+  Single-finger scrolling and text selection are unaffected.
 - **Settings** — theme (System/Light/Dark/AMOLED black), font size, independent
   heading size, grid columns (1–3), note-card preview length, and sort order.
-  Theme and font scale apply app-wide via the Material 3 typography.
+  Theme and font scale apply app-wide via the Material 3 typography (the pinch zoom
+  above stacks on the chosen font size).
 - **In-app updates** — distributed outside any app store, NextKeep updates itself:
   Settings → **Check for updates** fetches the latest signed release from GitHub,
   and downloads + installs it in place. See **Versioning and releases** below and

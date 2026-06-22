@@ -11,15 +11,20 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import ie.dowd.nextkeep.NextKeepApp
+import ie.dowd.nextkeep.data.MAX_NOTE_FONT_SCALE
+import ie.dowd.nextkeep.data.MIN_NOTE_FONT_SCALE
 import ie.dowd.nextkeep.data.NotesRepository
+import ie.dowd.nextkeep.data.SettingsStore
 import ie.dowd.nextkeep.markdown.MarkdownEditing
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 class EditorViewModel(
     private val repository: NotesRepository,
+    private val settingsStore: SettingsStore,
     private val appScope: CoroutineScope,
     localId: Long,
 ) : ViewModel() {
@@ -35,12 +40,19 @@ class EditorViewModel(
     var modified by mutableStateOf(0L)
         private set
 
+    /** Pinch-to-zoom reading scale for note text, relative to the app font size. */
+    var noteFontScale by mutableStateOf(1f)
+        private set
+
     private var currentLocalId: Long? = localId.takeIf { it > 0 }
     private var loaded = false
     private var deleted = false
     private var saveJob: Job? = null
+    private var zoomJob: Job? = null
 
     init {
+        // The zoom level is an app-wide preference; seed it from the stored value.
+        viewModelScope.launch { noteFontScale = settingsStore.settings.first().noteFontScale }
         viewModelScope.launch {
             currentLocalId?.let { id ->
                 repository.getNote(id)?.let { note ->
@@ -52,6 +64,19 @@ class EditorViewModel(
                 }
             }
             loaded = true
+        }
+    }
+
+    /** Multiply the reading scale by a pinch [factor] (1.0 = no change), clamped. */
+    fun onZoom(factor: Float) {
+        val next = (noteFontScale * factor).coerceIn(MIN_NOTE_FONT_SCALE, MAX_NOTE_FONT_SCALE)
+        if (next == noteFontScale) return
+        noteFontScale = next
+        // Live value updates every gesture frame; throttle the DataStore write.
+        zoomJob?.cancel()
+        zoomJob = viewModelScope.launch {
+            delay(300)
+            settingsStore.setNoteFontScale(next)
         }
     }
 
@@ -132,6 +157,10 @@ class EditorViewModel(
     /** Called when the editor leaves the screen: save immediately and push. */
     fun flushAndSync() {
         saveJob?.cancel()
+        // Persist the zoom regardless of the note's fate (it's a global setting).
+        zoomJob?.cancel()
+        val scale = noteFontScale
+        appScope.launch { settingsStore.setNoteFontScale(scale) }
         if (deleted) return
         appScope.launch {
             if (title.isBlank() && body.text.isBlank()) {
@@ -168,7 +197,12 @@ class EditorViewModel(
         fun factory(localId: Long) = viewModelFactory {
             initializer {
                 val app = this[APPLICATION_KEY] as NextKeepApp
-                EditorViewModel(app.container.repository, app.container.appScope, localId)
+                EditorViewModel(
+                    app.container.repository,
+                    app.container.settingsStore,
+                    app.container.appScope,
+                    localId,
+                )
             }
         }
     }
