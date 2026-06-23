@@ -40,14 +40,29 @@ import ie.dowd.nextkeep.ui.settings.SettingsScreen
 import ie.dowd.nextkeep.ui.theme.NextKeepTheme
 import kotlinx.coroutines.flow.first
 
+/**
+ * A request to jump straight to the editor, raised by a launcher shortcut or a
+ * home-screen widget tap (see [MainActivity] action constants).
+ */
+sealed interface LaunchAction {
+    /** Create and open a fresh, empty note. */
+    object NewNote : LaunchAction
+    /** Create and open a fresh note pre-seeded with one checklist item. */
+    object NewChecklist : LaunchAction
+    /** Open an existing note by its local row id. */
+    data class OpenNote(val localId: Long) : LaunchAction
+}
+
 class MainActivity : FragmentActivity() {
 
     private val sharedText = mutableStateOf<String?>(null)
+    private val launchAction = mutableStateOf<LaunchAction?>(null)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         sharedText.value = sharedTextFrom(intent)
+        launchAction.value = launchActionFrom(intent)
         setContent {
             val app = applicationContext as NextKeepApp
             val settings by app.container.settingsStore.settings
@@ -62,6 +77,8 @@ class MainActivity : FragmentActivity() {
                         appLockEnabled = settings.appLock,
                         sharedText = sharedText.value,
                         onSharedConsumed = { sharedText.value = null },
+                        launchAction = launchAction.value,
+                        onLaunchConsumed = { launchAction.value = null },
                     )
                 }
             }
@@ -71,12 +88,28 @@ class MainActivity : FragmentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         sharedTextFrom(intent)?.let { sharedText.value = it }
+        launchActionFrom(intent)?.let { launchAction.value = it }
     }
 
     private fun sharedTextFrom(intent: Intent?): String? {
         if (intent?.action != Intent.ACTION_SEND) return null
         if (intent.type?.startsWith("text/") != true) return null
         return intent.getStringExtra(Intent.EXTRA_TEXT)?.takeIf { it.isNotBlank() }
+    }
+
+    private fun launchActionFrom(intent: Intent?): LaunchAction? = when (intent?.action) {
+        ACTION_NEW_NOTE -> LaunchAction.NewNote
+        ACTION_NEW_CHECKLIST -> LaunchAction.NewChecklist
+        ACTION_OPEN_NOTE ->
+            intent.getLongExtra(EXTRA_LOCAL_ID, -1L).takeIf { it > 0 }?.let(LaunchAction::OpenNote)
+        else -> null
+    }
+
+    companion object {
+        const val ACTION_NEW_NOTE = "ie.dowd.nextkeep.action.NEW_NOTE"
+        const val ACTION_NEW_CHECKLIST = "ie.dowd.nextkeep.action.NEW_CHECKLIST"
+        const val ACTION_OPEN_NOTE = "ie.dowd.nextkeep.action.OPEN_NOTE"
+        const val EXTRA_LOCAL_ID = "ie.dowd.nextkeep.extra.LOCAL_ID"
     }
 }
 
@@ -85,6 +118,8 @@ private fun AppRoot(
     appLockEnabled: Boolean,
     sharedText: String?,
     onSharedConsumed: () -> Unit,
+    launchAction: LaunchAction?,
+    onLaunchConsumed: () -> Unit,
 ) {
     var unlocked by rememberSaveable { mutableStateOf(false) }
 
@@ -102,12 +137,22 @@ private fun AppRoot(
     if (appLockEnabled && !unlocked) {
         LockScreen(onUnlocked = { unlocked = true })
     } else {
-        AppNav(sharedText = sharedText, onSharedConsumed = onSharedConsumed)
+        AppNav(
+            sharedText = sharedText,
+            onSharedConsumed = onSharedConsumed,
+            launchAction = launchAction,
+            onLaunchConsumed = onLaunchConsumed,
+        )
     }
 }
 
 @Composable
-private fun AppNav(sharedText: String?, onSharedConsumed: () -> Unit) {
+private fun AppNav(
+    sharedText: String?,
+    onSharedConsumed: () -> Unit,
+    launchAction: LaunchAction?,
+    onLaunchConsumed: () -> Unit,
+) {
     val app = LocalContext.current.applicationContext as NextKeepApp
 
     // Wait for the stored account before picking the start destination.
@@ -134,6 +179,21 @@ private fun AppNav(sharedText: String?, onSharedConsumed: () -> Unit) {
         if (text != null && startDestination == "notes") {
             val id = app.container.repository.createNote("", text, "", false)
             onSharedConsumed()
+            navController.navigate("editor/$id")
+        }
+    }
+
+    // A launcher shortcut or widget tap: open (or create then open) the right note.
+    LaunchedEffect(launchAction, startDestination) {
+        val action = launchAction
+        if (action != null && startDestination == "notes") {
+            val repo = app.container.repository
+            val id = when (action) {
+                LaunchAction.NewNote -> repo.createNote("", "", "", false)
+                LaunchAction.NewChecklist -> repo.createNote("", "- [ ] ", "", false)
+                is LaunchAction.OpenNote -> action.localId
+            }
+            onLaunchConsumed()
             navController.navigate("editor/$id")
         }
     }

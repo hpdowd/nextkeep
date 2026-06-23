@@ -44,6 +44,16 @@ class EditorViewModel(
     var noteFontScale by mutableStateOf(1f)
         private set
 
+    // Undo/redo over the note's text (title + body); favorite/category are excluded.
+    var canUndo by mutableStateOf(false)
+        private set
+    var canRedo by mutableStateOf(false)
+        private set
+
+    private val history = EditHistory()
+    private var lastEditAt = 0L
+    private var lastEditTag = ""
+
     private var currentLocalId: Long? = localId.takeIf { it > 0 }
     private var loaded = false
     private var deleted = false
@@ -57,13 +67,17 @@ class EditorViewModel(
             currentLocalId?.let { id ->
                 repository.getNote(id)?.let { note ->
                     title = note.title
-                    body = TextFieldValue(note.body)
+                    // Place the caret at the end so editing (and shortcut-seeded
+                    // checklists) continue from the existing text rather than its start.
+                    body = TextFieldValue(note.body, TextRange(note.body.length))
                     category = note.category
                     favorite = note.favorite
                     modified = note.modified
                 }
             }
             loaded = true
+            history.reset(snapshot())
+            refreshHistoryFlags()
         }
     }
 
@@ -82,6 +96,7 @@ class EditorViewModel(
 
     fun onTitleChange(value: String) {
         title = value
+        recordHistory(coalesce = typingCoalesce("title"))
         scheduleSave()
     }
 
@@ -92,11 +107,13 @@ class EditorViewModel(
         if (caret != null) {
             MarkdownEditing.onNewline(value.text, caret)?.let { edit ->
                 body = TextFieldValue(edit.text, TextRange(edit.selStart, edit.selEnd))
+                recordHistory(coalesce = false) // a list continuation is its own step
                 scheduleSave()
                 return
             }
         }
         body = value
+        recordHistory(coalesce = typingCoalesce("body"))
         scheduleSave()
     }
 
@@ -113,6 +130,7 @@ class EditorViewModel(
         val newText = MarkdownEditing.toggleTaskAt(body.text, taskIndex)
         if (newText == body.text) return
         body = body.copy(text = newText)
+        recordHistory(coalesce = false)
         scheduleSave()
     }
 
@@ -131,7 +149,49 @@ class EditorViewModel(
         val current = body
         val result = op(current.text, current.selection.start, current.selection.end)
         body = TextFieldValue(result.text, TextRange(result.selStart, result.selEnd))
+        recordHistory(coalesce = false) // each formatting action is a discrete step
         scheduleSave()
+    }
+
+    /** Revert to the previous text state (no-op if there is nothing to undo). */
+    fun undo() = history.undo()?.let(::applySnapshot)
+
+    /** Re-apply a previously undone text state (no-op if there is nothing to redo). */
+    fun redo() = history.redo()?.let(::applySnapshot)
+
+    private fun applySnapshot(s: EditSnapshot) {
+        title = s.title
+        val len = s.body.length
+        body = TextFieldValue(
+            s.body,
+            TextRange(s.selStart.coerceIn(0, len), s.selEnd.coerceIn(0, len)),
+        )
+        lastEditTag = "" // a following keystroke shouldn't merge into the restored state
+        refreshHistoryFlags()
+        scheduleSave()
+    }
+
+    private fun snapshot() =
+        EditSnapshot(title, body.text, body.selection.start, body.selection.end)
+
+    private fun recordHistory(coalesce: Boolean) {
+        if (!loaded) return // ignore programmatic state set before the baseline exists
+        history.record(snapshot(), coalesce)
+        refreshHistoryFlags()
+    }
+
+    private fun refreshHistoryFlags() {
+        canUndo = history.canUndo
+        canRedo = history.canRedo
+    }
+
+    /** Whether an edit tagged [tag] continues a recent run of the same kind. */
+    private fun typingCoalesce(tag: String): Boolean {
+        val nowMs = System.currentTimeMillis()
+        val coalesce = tag == lastEditTag && nowMs - lastEditAt < COALESCE_WINDOW_MS
+        lastEditAt = nowMs
+        lastEditTag = tag
+        return coalesce
     }
 
     fun onCategoryChange(value: String) {
@@ -194,6 +254,9 @@ class EditorViewModel(
     }
 
     companion object {
+        /** Keystrokes of the same kind within this window collapse into one undo step. */
+        private const val COALESCE_WINDOW_MS = 700L
+
         fun factory(localId: Long) = viewModelFactory {
             initializer {
                 val app = this[APPLICATION_KEY] as NextKeepApp

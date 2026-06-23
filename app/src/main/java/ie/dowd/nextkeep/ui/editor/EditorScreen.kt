@@ -35,6 +35,8 @@ import androidx.compose.material.icons.automirrored.outlined.FormatIndentDecreas
 import androidx.compose.material.icons.automirrored.outlined.FormatIndentIncrease
 import androidx.compose.material.icons.automirrored.outlined.FormatListBulleted
 import androidx.compose.material.icons.automirrored.outlined.Label
+import androidx.compose.material.icons.automirrored.outlined.Redo
+import androidx.compose.material.icons.automirrored.outlined.Undo
 import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.outlined.Checklist
 import androidx.compose.material.icons.outlined.Delete
@@ -320,6 +322,8 @@ private fun FormattingToolbar(viewModel: EditorViewModel, reFocus: () -> Unit) {
         // Each action mutates the body then restores focus so the keyboard and
         // selection stay put across taps.
         fun act(block: () -> Unit): () -> Unit = { block(); reFocus() }
+        FormatButton(Icons.AutoMirrored.Outlined.Undo, "Undo", act(viewModel::undo), enabled = viewModel.canUndo)
+        FormatButton(Icons.AutoMirrored.Outlined.Redo, "Redo", act(viewModel::redo), enabled = viewModel.canRedo)
         FormatButton(Icons.Outlined.Title, "Heading", act(viewModel::cycleHeading))
         FormatButton(Icons.Outlined.FormatBold, "Bold", act(viewModel::bold))
         FormatButton(Icons.Outlined.FormatItalic, "Italic", act(viewModel::italic))
@@ -333,9 +337,19 @@ private fun FormattingToolbar(viewModel: EditorViewModel, reFocus: () -> Unit) {
 }
 
 @Composable
-private fun FormatButton(icon: ImageVector, description: String, onClick: () -> Unit) {
-    IconButton(onClick = onClick) {
-        Icon(icon, contentDescription = description, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+private fun FormatButton(
+    icon: ImageVector,
+    description: String,
+    onClick: () -> Unit,
+    enabled: Boolean = true,
+) {
+    IconButton(onClick = onClick, enabled = enabled) {
+        Icon(
+            icon,
+            contentDescription = description,
+            tint = if (enabled) MaterialTheme.colorScheme.onSurfaceVariant
+            else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f),
+        )
     }
 }
 

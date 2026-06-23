@@ -29,7 +29,23 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <data android:mimeType="text/plain" />
             </intent-filter>
+            <!-- Launcher long-press shortcuts (New note / New checklist). -->
+            <meta-data
+                android:name="android.app.shortcuts"
+                android:resource="@xml/shortcuts" />
         </activity>
+
+        <!-- Home-screen widget listing recent notes (Glance). -->
+        <receiver
+            android:name=".widget.NotesWidgetReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/notes_widget_info" />
+        </receiver>
 
         <provider
             android:name="androidx.core.content.FileProvider"

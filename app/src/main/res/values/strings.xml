@@ -7,4 +7,11 @@
     <string name="others">Others</string>
     <string name="title_hint">Title</string>
     <string name="note_hint">Note</string>
+    <string name="shortcut_new_note_short">New note</string>
+    <string name="shortcut_new_note_long">New note</string>
+    <string name="shortcut_new_checklist_short">Checklist</string>
+    <string name="shortcut_new_checklist_long">New checklist</string>
+    <string name="widget_description">Your recent notes</string>
+    <string name="widget_empty">No notes yet</string>
+    <string name="widget_new_note">New note</string>
 </resources>

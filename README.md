@@ -51,8 +51,9 @@ the **Known limitations** section.
 - **QR login** — "Scan login QR code" reads Nextcloud's `nc://login/...` code
   (server + user + app password) and connects, via CameraX + ZXing (offline, no
   Google Play dependency). See `qr/`.
-- **Editor** — title + body with autosave (debounced 400 ms), pin, share, delete
-  (with an Undo snackbar), label editing, "Edited x ago" footer.
+- **Editor** — title + body with autosave (debounced 400 ms), undo/redo, pin,
+  share, delete (with an Undo snackbar), label editing, "Edited x ago" footer.
+  Undo/redo group continuous typing into one step; toolbar actions are their own.
 - **Pinch to zoom** — a two-finger pinch in the editor (preview *or* edit) scales
   the note's text up or down, with a brief "120%" indicator. The level persists and
   is *relative* to the app-wide font size (it multiplies on top), so it's a per-read
@@ -67,6 +68,10 @@ the **Known limitations** section.
   and downloads + installs it in place. See **Versioning and releases** below and
   `data/Updater.kt`.
 - **Share into NextKeep** — share text from any app to create a note.
+- **Home-screen widget** — a Glance widget lists your recent notes; tap one to open
+  it or **+** to start a new note. It refreshes as notes change. See `widget/`.
+- **Quick capture** — long-press the app icon for *New note* / *New checklist*
+  launcher shortcuts that jump straight into the editor.
 - **App lock** — optional biometric / device-credential lock (`BiometricPrompt`),
   re-locking when the app is backgrounded.
 - **Sync** — pull-to-refresh two-way sync; local-pending changes win and are pushed
@@ -158,14 +163,14 @@ If that file is absent, the release build falls back to the debug key.
 
 `.github/workflows/build.yml` builds the app in the cloud on every push and on version
 tags, then publishes the APK so you can download it from a browser on any machine — no
-JDK or Android SDK needed locally. The same file runs on two backends:
+JDK or Android SDK needed locally. Builds run on **GitHub** only:
 
 - **GitHub** — push or mirror the repo to GitHub.com; it builds on free hosted runners.
   Grab the APK from the run's **Artifacts**, and pushing a tag like `v1.0` also attaches
   it to a **Release**.
-- **Gitea / Forgejo Actions** — a self-hosted Gitea/Forgejo reads the same
-  `.github/workflows/`. It needs Actions enabled and a registered `act_runner` (Docker);
-  then the APK is downloadable from the run's Artifacts.
+- **Gitea / Forgejo** (`origin`) — Gitea/Forgejo Actions also reads `.github/workflows/`,
+  but the build job is guarded to github.com (`if: github.server_url == ...`) so it is
+  skipped there. The repo is push-mirrored to GitHub, which is where the build runs.
 
 ## Versioning and releases
 
@@ -278,6 +283,8 @@ Notable design points:
   and plain-text stripper.
 - `UpdaterTest` — the in-app updater's version-series comparison (the `v` prefix,
   rc/git-describe/`-dev` suffixes) and release-APK selection.
+- `EditHistoryTest` — the editor's undo/redo stack: branch truncation, keystroke
+  coalescing, and the per-step history cap.
 
 For manual testing without a real server, `tools/mock_notes_server.py` is a tiny
 in-memory mock of the Notes API v1 that seeds a few markdown notes:
