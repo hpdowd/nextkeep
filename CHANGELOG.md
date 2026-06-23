@@ -6,6 +6,22 @@ All notable changes to NextKeep are recorded here. The format follows
 Each release's APKs are published at
 [github.com/hpdowd/nextkeep/releases](https://github.com/hpdowd/nextkeep/releases).
 
+## [Unreleased]
+
+### Added
+- **Editor undo/redo** — Undo and Redo buttons in the formatting toolbar revert
+  and re-apply text changes. Continuous typing collapses into one step, while
+  toolbar actions and list continuations are their own steps (logic in
+  `EditHistory`, unit-tested).
+- **Quick-capture launcher shortcuts** — long-pressing the app icon offers
+  *New note* and *New checklist*, opening straight into a fresh editor.
+- **Home-screen widget** — a Glance widget listing recent notes; tap a note to
+  open it or the *+* to start a new one. It refreshes as notes change.
+
+### Changed
+- Opening a note now places the caret at the **end** of its body, so editing
+  continues from the existing text.
+
 ## [1.1] - 2026-06-14
 
 First release signed with the stable key, and the first that can update in place.

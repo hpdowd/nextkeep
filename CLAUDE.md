@@ -57,6 +57,8 @@ ui/        Compose screens + ViewModels: login (+ QR scan), notes, editor, setti
 markdown/  MarkdownEditing (toolbar transforms), Markdown.kt (block parser + strip),
            MarkdownText (renderer). Dependency-free, heavily unit-tested.
 qr/        NextcloudLoginUri (nc://login parser), QrCodeAnalyzer (CameraX + ZXing)
+widget/    NotesWidget (Glance home-screen list) + receiver; taps fire MainActivity
+           launch intents (ACTION_OPEN_NOTE / NEW_NOTE), also used by app shortcuts
 data/
   local/   Room: NoteEntity (dirty/deleted flags), NoteDao, NotesDatabase
   remote/  Retrofit Notes API v1 + basic-auth interceptor (ApiClient)
@@ -69,8 +71,9 @@ data/
 
 All reads come from Room (`repository.notes` Flow). Edits write locally first
 (`dirty = true`) and sync in the background. `MainActivity` hosts the nav graph, the
-theme (driven by settings), the app-lock gate (ProcessLifecycle re-lock), and the
-`ACTION_SEND` share handler.
+theme (driven by settings), the app-lock gate (ProcessLifecycle re-lock), the
+`ACTION_SEND` share handler, and the widget/shortcut launch intents (`ACTION_NEW_NOTE`
+/ `NEW_CHECKLIST` / `OPEN_NOTE`) that open straight into the editor.
 
 ## Conventions & gotchas (read before touching sync or the editor)
 
@@ -99,6 +102,12 @@ theme (driven by settings), the app-lock gate (ProcessLifecycle re-lock), and th
   The gesture (`detectPinchZoom` in `EditorScreen`) is **two-finger only** and sits
   *inner* of the scroll, so single-finger scroll/selection still work (see Local
   testing for why the gesture can't be scripted).
+- **Editor undo/redo** uses a pure `EditHistory` (in `ui/editor/`, no Compose types,
+  unit-tested) holding `EditSnapshot`s of title+body+selection. `EditorViewModel`
+  records a step on each text mutation; a run of keystrokes of the same kind coalesces
+  into one step (time-windowed), while toolbar actions and list auto-continue are
+  discrete. `undo`/`redo` set state directly (bypassing `onBodyChange`) so they don't
+  re-record. Favorite/category aren't in the history — undo is text-only.
 - **Never commit secrets.** `keystore.properties`, `*.jks`, `local.properties`, and
   `*.apk` are gitignored. Release signing reads `keystore.properties`; absent it, the
   release build falls back to the debug key.
@@ -128,9 +137,10 @@ theme (driven by settings), the app-lock gate (ProcessLifecycle re-lock), and th
 `testDebugUnitTest` covers the pure logic, which is where the bugs hide:
 `ContentMappingTest` (title/body round-trip), `QrLoginParseTest`, `MarkdownTest`
 (toolbar transforms, block parser, task toggle, list auto-continue), `UpdaterTest`
-(version-series compare, release-APK selection). When adding logic to `markdown/`, the
-repository's content handling, or the updater, add a unit test — UI/sync wiring is then
-verified on the emulator against the mock server.
+(version-series compare, release-APK selection), `EditHistoryTest` (editor undo/redo
+branching + keystroke coalescing). When adding logic to `markdown/`, the repository's
+content handling, the updater, or the editor's undo stack, add a unit test — UI/sync
+wiring (and the Glance widget) is then verified on the emulator against the mock server.
 
 This project was written end-to-end by Claude in Claude Code; keep that bar — small,
 documented, tested changes.

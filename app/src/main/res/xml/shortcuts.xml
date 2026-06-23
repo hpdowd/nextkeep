@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Launcher long-press shortcuts: jump straight into a new note. The intents are
+     explicit (targetClass + custom action), so MainActivity routes them to a fresh
+     editor without needing a matching <intent-filter>. -->
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:shortcutId="new_note"
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_note"
+        android:shortcutShortLabel="@string/shortcut_new_note_short"
+        android:shortcutLongLabel="@string/shortcut_new_note_long">
+        <intent
+            android:action="ie.dowd.nextkeep.action.NEW_NOTE"
+            android:targetPackage="ie.dowd.nextkeep"
+            android:targetClass="ie.dowd.nextkeep.MainActivity" />
+    </shortcut>
+    <shortcut
+        android:shortcutId="new_checklist"
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_checklist"
+        android:shortcutShortLabel="@string/shortcut_new_checklist_short"
+        android:shortcutLongLabel="@string/shortcut_new_checklist_long">
+        <intent
+            android:action="ie.dowd.nextkeep.action.NEW_CHECKLIST"
+            android:targetPackage="ie.dowd.nextkeep"
+            android:targetClass="ie.dowd.nextkeep.MainActivity" />
+    </shortcut>
+</shortcuts>
