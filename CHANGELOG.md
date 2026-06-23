@@ -6,7 +6,7 @@ All notable changes to NextKeep are recorded here. The format follows
 Each release's APKs are published at
 [github.com/hpdowd/nextkeep/releases](https://github.com/hpdowd/nextkeep/releases).
 
-## [Unreleased]
+## [1.2] - 2026-06-23
 
 ### Added
 - **Editor undo/redo** — Undo and Redo buttons in the formatting toolbar revert
@@ -21,6 +21,14 @@ Each release's APKs are published at
 ### Changed
 - Opening a note now places the caret at the **end** of its body, so editing
   continues from the existing text.
+
+### Fixed
+- **Spurious "(conflict)" duplicate notes.** A stale local etag could fail the
+  `If-Match` on push and fork a copy even when nothing had really diverged. The
+  pull now treats the etag as authoritative (timestamp is only a fallback for
+  blank-etag servers), so etags no longer go stale, and the conflict handler
+  re-checks the server's content and only keeps both copies when the text
+  genuinely differs.
 
 ## [1.1] - 2026-06-14
 
@@ -83,6 +91,7 @@ Initial release — a Google Keep–styled Android client for Nextcloud Notes
 - App version **derived from git** and shown in Settings; cloud **CI** builds APKs on
   GitHub/Gitea Actions.
 
+[1.2]: https://github.com/hpdowd/nextkeep/releases/tag/v1.2
 [1.1]: https://github.com/hpdowd/nextkeep/releases/tag/v1.1
 [1.1-rc1]: https://github.com/hpdowd/nextkeep/releases/tag/v1.1-rc1
 [1.0]: https://github.com/hpdowd/nextkeep/releases/tag/v1.0
