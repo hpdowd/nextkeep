@@ -6,6 +6,16 @@ All notable changes to NextKeep are recorded here. The format follows
 Each release's APKs are published at
 [github.com/hpdowd/nextkeep/releases](https://github.com/hpdowd/nextkeep/releases).
 
+## [Unreleased]
+
+### Fixed
+- **Spurious "(conflict)" duplicate notes.** A stale local etag could fail the
+  `If-Match` on push and fork a copy even when nothing had really diverged. The
+  pull now treats the etag as authoritative (timestamp is only a fallback for
+  blank-etag servers), so etags no longer go stale, and the conflict handler
+  re-checks the server's content and only keeps both copies when the text
+  genuinely differs.
+
 ## [1.1] - 2026-06-14
 
 First release signed with the stable key, and the first that can update in place.

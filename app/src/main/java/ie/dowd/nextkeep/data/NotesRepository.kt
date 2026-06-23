@@ -149,11 +149,38 @@ class NotesRepository(
     }
 
     /**
-     * The note changed on the server since we last fetched it. Preserve both: the
-     * server's version keeps the original id, and our local edit is split off into
-     * a new "(conflict)" note that gets uploaded on the next sync.
+     * A 412 says the server's etag no longer matches the one we sent. That can be a
+     * real edit elsewhere — or just a stale local etag, in which case the server's
+     * content is identical to ours and forking a "(conflict)" copy would be wrong.
+     * So fetch the server copy first and only split off a duplicate when the text
+     * genuinely diverges; otherwise adopt the fresh etag and move on.
      */
     private suspend fun handleConflict(api: NotesApi, local: NoteEntity) {
+        val server = runCatching { api.getNote(local.remoteId!!) }.getOrNull()
+        if (server == null) {
+            // Couldn't read the server copy; clear the flag so we don't loop. The
+            // local edit is kept and reconciles on a later pull.
+            dao.update(local.copy(dirty = false))
+            collectionEtag = null
+            return
+        }
+
+        val (serverTitle, serverBody) = splitContent(server.content)
+        if (serverTitle == local.title && serverBody == local.body) {
+            // Same text on both sides: a stale etag, not a real conflict. Adopt the
+            // server's etag (healing the staleness) and keep the note dirty only if
+            // our metadata (label/pin) still needs pushing.
+            val metadataMatches =
+                server.category == local.category && server.favorite == local.favorite
+            dao.update(
+                local.copy(etag = server.etag, modified = server.modified, dirty = !metadataMatches)
+            )
+            collectionEtag = null
+            return
+        }
+
+        // Genuine divergence: preserve both. The server keeps the id; our local edit
+        // splits off into a new "(conflict)" note uploaded on the next sync.
         dao.insert(
             local.copy(
                 localId = 0,
@@ -165,12 +192,7 @@ class NotesRepository(
                 deleted = false,
             )
         )
-        val server = runCatching { api.getNote(local.remoteId!!) }.getOrNull()
-        if (server != null) {
-            dao.update(entityOf(server).copy(localId = local.localId))
-        } else {
-            dao.update(local.copy(dirty = false))
-        }
+        dao.update(entityOf(server).copy(localId = local.localId))
         collectionEtag = null
     }
 
@@ -196,12 +218,15 @@ class NotesRepository(
     }
 
     /**
-     * Whether the server's copy matches what we last stored. Prefers the etag
-     * but falls back to the modified timestamp, so it stays correct on Notes
-     * servers that return blank etags.
+     * Whether the server's copy matches what we last stored. The etag is
+     * authoritative when present; the modified timestamp is only a fallback for
+     * Notes servers that return blank etags. (Using OR here was a bug: a server
+     * etag that drifted while `modified` stayed equal would be treated as
+     * unchanged, leaving a stale local etag that later triggered false 412s and
+     * spurious "(conflict)" copies.)
      */
     private fun isUnchanged(existing: NoteEntity, dto: NoteDto): Boolean =
-        (dto.etag.isNotBlank() && dto.etag == existing.etag) || dto.modified == existing.modified
+        if (dto.etag.isNotBlank()) dto.etag == existing.etag else dto.modified == existing.modified
 
     private fun payloadOf(note: NoteEntity) = NotePayload(
         title = note.title,
