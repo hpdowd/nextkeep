@@ -6,6 +6,21 @@ All notable changes to NextKeep are recorded here. The format follows
 Each release's APKs are published at
 [github.com/hpdowd/nextkeep/releases](https://github.com/hpdowd/nextkeep/releases).
 
+## [1.2.1] - 2026-06-27
+
+### Fixed
+- **QR login scanner crashed instead of asking for the camera.** Tapping *Scan
+  login QR code* threw `IllegalArgumentException: Can only use lower 16 bits for
+  requestCode` and crashed before the permission dialog could appear — it only
+  worked if camera access had already been granted by hand. The host activity is a
+  `FragmentActivity` (needed for the biometric app lock), whose 16-bit request-code
+  limit is violated by the AndroidX Compose result registry, so
+  `rememberLauncherForActivityResult(...).launch(...)` threw on launch. Camera
+  permission and the "open settings" trip now go through FragmentActivity-safe
+  helpers (`ui/ActivityResultCompat.kt`), which also fixes the same latent crash in
+  the in-app updater's install-permission prompt. (1.1 attempted this flow but
+  never reached the crash, since it sits on the request itself.)
+
 ## [1.2] - 2026-06-23
 
 ### Added
@@ -91,6 +106,7 @@ Initial release — a Google Keep–styled Android client for Nextcloud Notes
 - App version **derived from git** and shown in Settings; cloud **CI** builds APKs on
   GitHub/Gitea Actions.
 
+[1.2.1]: https://github.com/hpdowd/nextkeep/releases/tag/v1.2.1
 [1.2]: https://github.com/hpdowd/nextkeep/releases/tag/v1.2
 [1.1]: https://github.com/hpdowd/nextkeep/releases/tag/v1.1
 [1.1-rc1]: https://github.com/hpdowd/nextkeep/releases/tag/v1.1-rc1
