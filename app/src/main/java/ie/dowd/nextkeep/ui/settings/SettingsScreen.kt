@@ -1,7 +1,5 @@
 package ie.dowd.nextkeep.ui.settings
 
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_WEAK
 import androidx.biometric.BiometricManager.Authenticators.DEVICE_CREDENTIAL
@@ -59,6 +57,7 @@ import ie.dowd.nextkeep.data.HeadingSize
 import ie.dowd.nextkeep.data.PreviewLength
 import ie.dowd.nextkeep.data.SortOrder
 import ie.dowd.nextkeep.data.ThemeMode
+import ie.dowd.nextkeep.ui.rememberIntentLauncher
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -78,12 +77,12 @@ fun SettingsScreen(
 
     // Installing a downloaded APK needs the "install unknown apps" permission. If
     // it's missing, send the user to grant it, then install when they return.
-    val installPermissionLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.StartActivityForResult(),
-    ) { if (viewModel.canInstall()) viewModel.install() }
+    val installPermissionLauncher = rememberIntentLauncher {
+        if (viewModel.canInstall()) viewModel.install()
+    }
     val onInstall = {
         if (viewModel.canInstall()) viewModel.install()
-        else installPermissionLauncher.launch(viewModel.unknownSourcesIntent())
+        else installPermissionLauncher(viewModel.unknownSourcesIntent())
     }
 
     Scaffold(

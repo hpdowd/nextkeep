@@ -3,11 +3,8 @@ package ie.dowd.nextkeep.ui.login
 import android.Manifest
 import android.content.Context
 import android.content.Intent
-import android.content.pm.PackageManager
 import android.net.Uri
 import android.provider.Settings
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.Preview
@@ -52,6 +49,9 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import ie.dowd.nextkeep.qr.QrCodeAnalyzer
+import ie.dowd.nextkeep.ui.hasPermission
+import ie.dowd.nextkeep.ui.rememberIntentLauncher
+import ie.dowd.nextkeep.ui.rememberPermissionRequest
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -62,31 +62,25 @@ fun ScanScreen(
 ) {
     val context = LocalContext.current
     var hasPermission by remember {
-        mutableStateOf(
-            ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) ==
-                PackageManager.PERMISSION_GRANTED
-        )
+        mutableStateOf(context.hasPermission(Manifest.permission.CAMERA))
     }
     // True once we've asked at least once. After a denial the OS won't show the
     // dialog again, so the prompt then sends the user to app settings instead.
     var requested by rememberSaveable { mutableStateOf(false) }
-    val permissionLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { granted -> hasPermission = granted }
+    val requestPermission = rememberPermissionRequest(Manifest.permission.CAMERA) { granted ->
+        hasPermission = granted
+    }
     // Re-check when returning from the app's settings screen.
-    val settingsLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.StartActivityForResult()
-    ) {
-        hasPermission = ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) ==
-            PackageManager.PERMISSION_GRANTED
+    val openSettings = rememberIntentLauncher {
+        hasPermission = context.hasPermission(Manifest.permission.CAMERA)
     }
 
     fun requestCamera() {
         if (!requested) {
             requested = true
-            permissionLauncher.launch(Manifest.permission.CAMERA)
+            requestPermission()
         } else {
-            settingsLauncher.launch(appSettingsIntent(context))
+            openSettings(appSettingsIntent(context))
         }
     }
 
