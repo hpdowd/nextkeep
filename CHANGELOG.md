@@ -6,6 +6,14 @@ All notable changes to NextKeep are recorded here. The format follows
 Each release's APKs are published at
 [github.com/hpdowd/nextkeep/releases](https://github.com/hpdowd/nextkeep/releases).
 
+## [1.2.2] - 2026-06-30
+
+### Added
+- **Markdown tables render.** GFM-style pipe tables (with `:---:`-style column
+  alignment) now show as a bordered, aligned grid in note cards and the editor
+  preview, instead of raw `| a | b |` text. Read-only — there's no toolbar button
+  to insert one yet.
+
 ## [1.2.1] - 2026-06-27
 
 ### Fixed
@@ -106,6 +114,7 @@ Initial release — a Google Keep–styled Android client for Nextcloud Notes
 - App version **derived from git** and shown in Settings; cloud **CI** builds APKs on
   GitHub/Gitea Actions.
 
+[1.2.2]: https://github.com/hpdowd/nextkeep/releases/tag/v1.2.2
 [1.2.1]: https://github.com/hpdowd/nextkeep/releases/tag/v1.2.1
 [1.2]: https://github.com/hpdowd/nextkeep/releases/tag/v1.2
 [1.1]: https://github.com/hpdowd/nextkeep/releases/tag/v1.1
