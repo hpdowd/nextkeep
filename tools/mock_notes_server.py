@@ -86,13 +86,16 @@ class Handler(BaseHTTPRequestHandler):
         return int(self.path.rsplit("/", 1)[-1])
 
     def do_GET(self):
-        if self.path.startswith(API):
+        if self.path == API:
             self._send(200, list(NOTES.values()))
+        elif self.path.startswith(API + "/"):
+            note = NOTES.get(self._id_from_path())
+            self._send(200, note) if note else self._send(404)
         else:
             self._send(404)
 
     def do_POST(self):
-        if self.path.startswith(API):
+        if self.path == API:
             data = self._read_json()
             note = add_note(
                 data.get("content", ""),
@@ -100,6 +103,16 @@ class Handler(BaseHTTPRequestHandler):
                 data.get("favorite", False),
                 data.get("title") or None,
             )
+            self._send(200, note)
+        elif self.path.startswith(API + "/") and self.path.endswith("/touch"):
+            # Test-only: bump a note's etag with no content change, simulating a
+            # server-side touch unrelated to an edit (e.g. another client poking
+            # metadata) - lets a stale-etag 412 be exercised without a real
+            # Nextcloud, without that 412 representing a genuine conflict.
+            note = NOTES.get(int(self.path.split("/")[-2]))
+            if not note:
+                return self._send(404)
+            note["etag"] = f"etag{note['id']}-{int(time.time())}-touched"
             self._send(200, note)
         else:
             self._send(404)
@@ -112,6 +125,9 @@ class Handler(BaseHTTPRequestHandler):
         note = NOTES.get(note_id)
         if not note:
             return self._send(404)
+        if_match = self.headers.get("If-Match")
+        if if_match and if_match != note["etag"]:
+            return self._send(412)
         data = self._read_json()
         content = data.get("content", note["content"])
         note.update(

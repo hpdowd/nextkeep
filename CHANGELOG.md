@@ -6,6 +6,25 @@ All notable changes to NextKeep are recorded here. The format follows
 Each release's APKs are published at
 [github.com/hpdowd/nextkeep/releases](https://github.com/hpdowd/nextkeep/releases).
 
+## [1.2.4] - 2026-06-30
+
+### Fixed
+- **A 412 could still fork a false "(conflict)" duplicate.** The previous fix
+  (1.2.1) only avoided a spurious fork when the local edit was metadata-only
+  (favorite/category) — it compared the freshly-fetched server copy against
+  the *pending local edit*, which is expected to differ from the server
+  whenever there's a genuine text edit queued, real conflict or not. So any
+  ordinary edit that hit a 412 for non-conflicting reasons (e.g. a server-side
+  etag bump unrelated to content) still forked a duplicate. `NoteEntity` now
+  tracks `syncedContent` — the content last confirmed from the server,
+  untouched by local edits — so a 412 is checked against that baseline
+  instead: unchanged means heal the etag and push normally next sync, a real
+  difference still forks a "(conflict)" copy as designed. Adds a Room
+  migration (schema v1 → v2) for the new column.
+- A failed GET while resolving a conflict no longer clears the local `dirty`
+  flag (which could silently drop the pending edit); the row is left as-is so
+  the whole push is retried on the next sync.
+
 ## [1.2.3] - 2026-06-30
 
 ### Fixed
@@ -125,6 +144,7 @@ Initial release — a Google Keep–styled Android client for Nextcloud Notes
 - App version **derived from git** and shown in Settings; cloud **CI** builds APKs on
   GitHub/Gitea Actions.
 
+[1.2.4]: https://github.com/hpdowd/nextkeep/releases/tag/v1.2.4
 [1.2.3]: https://github.com/hpdowd/nextkeep/releases/tag/v1.2.3
 [1.2.2]: https://github.com/hpdowd/nextkeep/releases/tag/v1.2.2
 [1.2.1]: https://github.com/hpdowd/nextkeep/releases/tag/v1.2.1

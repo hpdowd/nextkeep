@@ -32,8 +32,11 @@ There is no `gradlew` daemon preference; pass `--no-daemon` in CI-like runs. Pre
 - `python3 tools/mock_notes_server.py 8088` — in-memory mock of the Notes API v1,
   seeds a few markdown notes. From the emulator the host is `http://10.0.2.2:8088`.
   **Debug builds allow cleartext** (`src/debug/AndroidManifest.xml` overlay); release
-  is HTTPS-only. The mock does NOT emit ETags or 412s, so those sync paths are only
-  exercised against a real Nextcloud.
+  is HTTPS-only. The mock does real per-note etags and a real `If-Match` 412 on a
+  stale PUT, so the conflict path is exercisable without a Nextcloud instance; it
+  has no collection-level `If-None-Match`/304 support, and `POST .../{id}/touch` is
+  a test-only endpoint that bumps a note's etag with no content change, to simulate
+  a non-conflicting stale etag (see `NotesRepository.handleConflict`).
 - On the original dev machine there is a headless emulator AVD named `nextkeep`
   (`system-images;android-35;google_apis;x86_64`):
   `~/Android/Sdk/emulator/emulator -avd nextkeep -no-window -gpu swiftshader_indirect -no-snapshot -port 5554`

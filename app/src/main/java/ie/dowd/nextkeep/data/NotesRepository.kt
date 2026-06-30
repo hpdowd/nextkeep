@@ -150,31 +150,30 @@ class NotesRepository(
 
     /**
      * A 412 says the server's etag no longer matches the one we sent. That can be a
-     * real edit elsewhere — or just a stale local etag, in which case the server's
-     * content is identical to ours and forking a "(conflict)" copy would be wrong.
-     * So fetch the server copy first and only split off a duplicate when the text
-     * genuinely diverges; otherwise adopt the fresh etag and move on.
+     * real edit elsewhere — or just a stale local etag with nothing actually
+     * changed (a Notes server can bump a note's etag with no content change). The
+     * about-to-push [local] content is no help here — it's our pending edit, which
+     * is expected to differ from the server's old copy either way. What
+     * distinguishes the two is [NoteEntity.syncedContent]: the content the server
+     * confirmed having as of our last successful sync. If the freshly-fetched
+     * server copy still matches that, nothing else touched the note and this is
+     * just etag staleness; only a real mismatch there means a genuine edit
+     * elsewhere, worth preserving as a separate "(conflict)" note.
      */
     private suspend fun handleConflict(api: NotesApi, local: NoteEntity) {
         val server = runCatching { api.getNote(local.remoteId!!) }.getOrNull()
         if (server == null) {
-            // Couldn't read the server copy; clear the flag so we don't loop. The
-            // local edit is kept and reconciles on a later pull.
-            dao.update(local.copy(dirty = false))
-            collectionEtag = null
+            // Couldn't read the server copy (e.g. a transient network error) -
+            // leave the row as-is so the whole push is retried next sync, rather
+            // than risking the pending edit being dropped.
             return
         }
 
-        val (serverTitle, serverBody) = splitContent(server.content)
-        if (serverTitle == local.title && serverBody == local.body) {
-            // Same text on both sides: a stale etag, not a real conflict. Adopt the
-            // server's etag (healing the staleness) and keep the note dirty only if
-            // our metadata (label/pin) still needs pushing.
-            val metadataMatches =
-                server.category == local.category && server.favorite == local.favorite
-            dao.update(
-                local.copy(etag = server.etag, modified = server.modified, dirty = !metadataMatches)
-            )
+        if (server.content == local.syncedContent) {
+            // Server matches what we last knew: a stale etag, not a real conflict.
+            // Heal it; the note is still dirty, so the pending edit goes out with
+            // the fresh etag on the next push.
+            dao.update(local.copy(etag = server.etag))
             collectionEtag = null
             return
         }
@@ -186,6 +185,7 @@ class NotesRepository(
                 localId = 0,
                 remoteId = null,
                 etag = null,
+                syncedContent = null,
                 title = (local.title.ifBlank { "Note" }) + " (conflict)",
                 modified = now(),
                 dirty = true,
@@ -240,6 +240,7 @@ class NotesRepository(
         remoteId = dto.id,
         etag = dto.etag,
         modified = dto.modified,
+        syncedContent = dto.content,
         dirty = false,
     )
 
@@ -253,6 +254,7 @@ class NotesRepository(
             category = dto.category,
             favorite = dto.favorite,
             modified = dto.modified,
+            syncedContent = dto.content,
         )
     }
 

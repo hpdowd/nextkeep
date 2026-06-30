@@ -19,6 +19,14 @@ data class NoteEntity(
     val favorite: Boolean = false,
     /** Unix seconds, matching the API's `modified` field. */
     val modified: Long = 0,
+    /**
+     * The raw `content` (title+body joined) the server confirmed having as of
+     * the last successful push or pull — set only by [ie.dowd.nextkeep.data.NotesRepository]'s
+     * sync paths, never by a local edit. Lets a 412 conflict tell a genuine edit
+     * elsewhere (this differs from what the server had) apart from a merely
+     * stale etag (it doesn't), without confusing it with our own pending edit.
+     */
+    val syncedContent: String? = null,
     /** Has local changes not yet pushed to the server. */
     val dirty: Boolean = false,
     /** Deleted locally; row is kept as a tombstone until the delete is pushed. */
