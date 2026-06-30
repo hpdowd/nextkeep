@@ -1,7 +1,9 @@
 package ie.dowd.nextkeep.markdown
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,6 +17,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -27,7 +30,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
@@ -39,6 +45,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import ie.dowd.nextkeep.ui.theme.LocalHeadingScale
@@ -174,12 +181,127 @@ fun MarkdownText(
                     )
                 }
 
+                is MdBlock.Table -> MarkdownTable(
+                    headers = block.headers,
+                    alignments = block.alignments,
+                    rows = block.rows,
+                    rowLimit = bodyLines,
+                    cellMaxLines = if (maxBlocks == Int.MAX_VALUE) Int.MAX_VALUE else 2,
+                    linkColor = linkColor,
+                    codeBg = codeBg,
+                )
+
                 MdBlock.Divider -> HorizontalDivider(Modifier.padding(vertical = 8.dp))
                 MdBlock.Blank -> Spacer(Modifier.height(6.dp))
             }
         }
         if (overflow) {
             Text("…", style = MaterialTheme.typography.bodyLarge, color = onSurfaceVariant)
+        }
+    }
+}
+
+/**
+ * Renders a GFM table as a bordered grid. Column widths and row heights are
+ * measured from the cells themselves (capped per cell so one long cell can't
+ * blow out the whole table) then shared between the header and body rows via
+ * [colWidths]/[rowHeights], which a [drawBehind] on the same layout uses to
+ * paint the grid lines. Wrapped in horizontal scroll since a wide table
+ * otherwise wouldn't fit a note card or the editor.
+ */
+@Composable
+private fun MarkdownTable(
+    headers: List<String>,
+    alignments: List<TableAlign>,
+    rows: List<List<String>>,
+    rowLimit: Int,
+    cellMaxLines: Int,
+    linkColor: Color,
+    codeBg: Color,
+) {
+    val borderColor = MaterialTheme.colorScheme.outlineVariant
+    val bodyStyle = MaterialTheme.typography.bodyLarge
+    val headerStyle = bodyStyle.copy(fontWeight = FontWeight.Bold)
+    val shownRows = rows.take(rowLimit)
+    val truncated = rows.size > shownRows.size
+    val columns = headers.size
+    val totalRows = shownRows.size + 1
+    val density = LocalDensity.current
+    val cellPadding = with(density) { 8.dp.roundToPx() }
+    val cellMaxWidth = with(density) { 200.dp.roundToPx() }
+    val colWidths = remember(columns) { IntArray(columns) }
+    val rowHeights = remember(totalRows) { IntArray(totalRows) }
+
+    Column(Modifier.padding(vertical = 4.dp)) {
+        Box(Modifier.horizontalScroll(rememberScrollState())) {
+            Layout(
+                content = {
+                    headers.forEach { cell ->
+                        Text(
+                            buildInline(cell, linkColor, codeBg),
+                            style = headerStyle,
+                            maxLines = cellMaxLines,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                    shownRows.forEach { row ->
+                        row.forEach { cell ->
+                            Text(
+                                buildInline(cell, linkColor, codeBg),
+                                style = bodyStyle,
+                                maxLines = cellMaxLines,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                    }
+                },
+                modifier = Modifier
+                    .border(1.dp, borderColor)
+                    .drawBehind {
+                        var x = 0f
+                        for (c in 0 until columns - 1) {
+                            x += colWidths[c]
+                            drawLine(borderColor, Offset(x, 0f), Offset(x, size.height))
+                        }
+                        var y = 0f
+                        for (r in 0 until totalRows - 1) {
+                            y += rowHeights[r]
+                            drawLine(borderColor, Offset(0f, y), Offset(size.width, y))
+                        }
+                    },
+            ) { measurables, _ ->
+                val placeables = measurables.map { it.measure(Constraints(maxWidth = cellMaxWidth)) }
+                for (c in 0 until columns) colWidths[c] = 0
+                for (r in 0 until totalRows) rowHeights[r] = 0
+                for (r in 0 until totalRows) {
+                    for (c in 0 until columns) {
+                        val p = placeables[r * columns + c]
+                        colWidths[c] = maxOf(colWidths[c], p.width + 2 * cellPadding)
+                        rowHeights[r] = maxOf(rowHeights[r], p.height + 2 * cellPadding)
+                    }
+                }
+                layout(colWidths.sum(), rowHeights.sum()) {
+                    var y = 0
+                    for (r in 0 until totalRows) {
+                        var x = 0
+                        for (c in 0 until columns) {
+                            val p = placeables[r * columns + c]
+                            val innerWidth = colWidths[c] - 2 * cellPadding
+                            val offsetX = when (alignments.getOrElse(c) { TableAlign.LEFT }) {
+                                TableAlign.CENTER -> (innerWidth - p.width) / 2
+                                TableAlign.RIGHT -> innerWidth - p.width
+                                TableAlign.LEFT -> 0
+                            }.coerceAtLeast(0)
+                            p.placeRelative(x + cellPadding + offsetX, y + cellPadding)
+                            x += colWidths[c]
+                        }
+                        y += rowHeights[r]
+                    }
+                }
+            }
+        }
+        if (truncated) {
+            Text("…", style = bodyStyle, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }

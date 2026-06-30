@@ -95,6 +95,13 @@ theme (driven by settings), the app-lock gate (ProcessLifecycle re-lock), the
   renderer; tappable checkboxes map an ordinal back to the Nth task line via
   `MarkdownEditing.toggleTaskAt`. `MarkdownText` sizes its checkbox/list markers off
   `bodyLarge.fontSize` (not fixed dp) so they track the text at any scale.
+- **Tables** (`MdBlock.Table`, GFM pipe syntax with `:---:`-style alignment) are
+  parsed in `Markdown.kt` and rendered by a custom `Layout` in `MarkdownText.kt`
+  that measures every cell first to get shared column widths/row heights (mutated
+  into `colWidths`/`rowHeights` `IntArray`s during measure, read back by a
+  `drawBehind` on the same node to paint grid lines) before placing cells per
+  column alignment; wrapped in horizontal scroll since a wide table won't fit a
+  note card. There's no toolbar button to insert one — tables are render-only.
 - **Editor pinch-to-zoom.** The note content is wrapped in a nested `MaterialTheme`
   whose typography is `Typography.scaledBy(noteFontScale)` (in `theme/`), stacked over
   the app-wide font scale — so the two multiply. `noteFontScale` is a persisted

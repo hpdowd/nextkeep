@@ -44,10 +44,10 @@ the **Known limitations** section.
 - **Markdown** — Notes are markdown (as Nextcloud stores them). The editor has a
   formatting toolbar (headings, bold, italic, bullet/numbered/checklist, quote,
   indent/outdent) and an edit⇄preview toggle. List cards and the editor preview
-  render markdown; **checkboxes are tappable** (toggle directly on a card or in
-  preview) and pressing **Enter auto-continues lists**. See `markdown/`
-  (`MarkdownEditing`, `parseMarkdownBlocks`, `MarkdownText`) — dependency-free,
-  unit-tested.
+  render markdown, including GFM-style **tables** (with column alignment);
+  **checkboxes are tappable** (toggle directly on a card or in preview) and
+  pressing **Enter auto-continues lists**. See `markdown/` (`MarkdownEditing`,
+  `parseMarkdownBlocks`, `MarkdownText`) — dependency-free, unit-tested.
 - **QR login** — "Scan login QR code" reads Nextcloud's `nc://login/...` code
   (server + user + app password) and connects, via CameraX + ZXing (offline, no
   Google Play dependency). See `qr/`.
@@ -265,8 +265,9 @@ Notable design points:
   DEVICE_CREDENTIAL`); on older versions the toggle is unavailable unless a biometric
   is enrolled.
 - **The markdown renderer covers a common subset** (headings, lists, task lists,
-  quotes, fenced code, dividers, inline bold/italic/code/strikethrough/links) — no
-  tables or deeply nested lists.
+  quotes, fenced code, dividers, tables, inline bold/italic/code/strikethrough/links)
+  — no deeply nested lists. Tables render (with alignment) but there's no toolbar
+  button to insert one; type the pipe syntax by hand.
 - **In-app updates need sideload permission and signature continuity.** The first run
   of the installer prompts to allow installing apps from NextKeep, and only same-key
   (stable-signed) releases can update in place — see **Versioning and releases**.

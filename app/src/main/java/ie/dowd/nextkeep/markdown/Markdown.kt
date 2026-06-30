@@ -1,5 +1,8 @@
 package ie.dowd.nextkeep.markdown
 
+/** Column alignment for a [MdBlock.Table], from the `:---:`-style separator row. */
+enum class TableAlign { LEFT, CENTER, RIGHT }
+
 /** Block-level markdown elements supported by the renderer. */
 sealed interface MdBlock {
     data class Heading(val level: Int, val text: String) : MdBlock
@@ -9,6 +12,11 @@ sealed interface MdBlock {
     data class Quote(val text: String) : MdBlock
     data class Code(val lines: List<String>) : MdBlock
     data class Paragraph(val text: String) : MdBlock
+    data class Table(
+        val headers: List<String>,
+        val alignments: List<TableAlign>,
+        val rows: List<List<String>>,
+    ) : MdBlock
     data object Divider : MdBlock
     data object Blank : MdBlock
 }
@@ -18,6 +26,55 @@ private val taskRe = Regex("^[-*] \\[([ xX])] +(.*)$")
 private val bulletRe = Regex("^( *)[-*+] +(.*)$")
 private val numberedRe = Regex("^( *)(\\d+)\\. +(.*)$")
 private val dividerRe = Regex("^ {0,3}(-{3,}|\\*{3,}|_{3,})$")
+private val tableSeparatorCellRe = Regex("^:?-+:?$")
+
+/**
+ * Splits a pipe-delimited table row into trimmed cells. Leading/trailing pipes
+ * are optional and dropped; `\|` is an escaped literal pipe.
+ */
+private fun splitTableCells(line: String): List<String> {
+    val trimmed = line.trim()
+    val cells = mutableListOf<String>()
+    val cell = StringBuilder()
+    var i = 0
+    while (i < trimmed.length) {
+        val ch = trimmed[i]
+        when {
+            ch == '\\' && i + 1 < trimmed.length && trimmed[i + 1] == '|' -> {
+                cell.append('|')
+                i += 2
+            }
+            ch == '|' -> {
+                cells += cell.toString()
+                cell.clear()
+                i++
+            }
+            else -> {
+                cell.append(ch)
+                i++
+            }
+        }
+    }
+    cells += cell.toString()
+    if (cells.size > 1 && cells.first().isBlank() && trimmed.startsWith("|")) cells.removeAt(0)
+    if (cells.size > 1 && cells.last().isBlank() && trimmed.endsWith("|")) cells.removeAt(cells.size - 1)
+    return cells.map { it.trim() }
+}
+
+/** Parses a table separator row (e.g. `| --- | :---: |`) into per-column alignment, or null if it isn't one. */
+private fun parseTableSeparator(line: String): List<TableAlign>? {
+    if ('|' !in line) return null
+    val cells = splitTableCells(line)
+    if (cells.isEmpty()) return null
+    return cells.map { raw ->
+        if (!tableSeparatorCellRe.matches(raw)) return null
+        when {
+            raw.startsWith(":") && raw.endsWith(":") -> TableAlign.CENTER
+            raw.endsWith(":") -> TableAlign.RIGHT
+            else -> TableAlign.LEFT
+        }
+    }
+}
 
 /**
  * Parses the common markdown subset used in notes into block elements. Pure and
@@ -41,6 +98,28 @@ fun parseMarkdownBlocks(markdown: String): List<MdBlock> {
             if (i < lines.size) i++ // consume closing fence
             out += MdBlock.Code(code)
             continue
+        }
+
+        if ('|' in line && i + 1 < lines.size) {
+            val alignments = parseTableSeparator(lines[i + 1])
+            val headers = if (alignments != null) splitTableCells(line) else null
+            if (alignments != null && headers != null && headers.isNotEmpty()) {
+                i += 2
+                val rows = mutableListOf<List<String>>()
+                while (i < lines.size && '|' in lines[i] && lines[i].isNotBlank()) {
+                    rows += splitTableCells(lines[i]).let { row ->
+                        when {
+                            row.size == headers.size -> row
+                            row.size > headers.size -> row.take(headers.size)
+                            else -> row + List(headers.size - row.size) { "" }
+                        }
+                    }
+                    i++
+                }
+                val colAlignments = List(headers.size) { idx -> alignments.getOrElse(idx) { TableAlign.LEFT } }
+                out += MdBlock.Table(headers, colAlignments, rows)
+                continue
+            }
         }
 
         out += classifyLine(line)
@@ -85,6 +164,10 @@ fun markdownToPlainText(markdown: String): String =
     markdown.split('\n').joinToString("\n") { raw ->
         var line = raw
         if (line.trimStart().startsWith("```")) return@joinToString ""
+        if ('|' in line) {
+            if (parseTableSeparator(line) != null) return@joinToString ""
+            line = splitTableCells(line).joinToString(" ")
+        }
         line = headingRe.replace(line) { it.groupValues[2] }
         line = taskRe.replace(line) { (if (it.groupValues[1].lowercase() == "x") "✓ " else "") + it.groupValues[2] }
         line = numberedRe.replace(line) { it.groupValues[3] }

@@ -2,6 +2,7 @@ package ie.dowd.nextkeep
 
 import ie.dowd.nextkeep.markdown.MarkdownEditing
 import ie.dowd.nextkeep.markdown.MdBlock
+import ie.dowd.nextkeep.markdown.TableAlign
 import ie.dowd.nextkeep.markdown.markdownToPlainText
 import ie.dowd.nextkeep.markdown.parseMarkdownBlocks
 import org.junit.Assert.assertEquals
@@ -117,6 +118,69 @@ class MarkdownParseTest {
     fun nested_bullet_indent_is_counted() {
         assertEquals(MdBlock.Bullet(1, "child"), parseMarkdownBlocks("  - child").single())
     }
+
+    @Test
+    fun parses_a_table_with_alignment_and_rows() {
+        val md = """
+            | Name | Qty | Price |
+            | :--- | :---: | ---: |
+            | Milk | 2 | 1.50 |
+            | Eggs | 12 | 3.00 |
+        """.trimIndent()
+        val table = parseMarkdownBlocks(md).single() as MdBlock.Table
+        assertEquals(listOf("Name", "Qty", "Price"), table.headers)
+        assertEquals(listOf(TableAlign.LEFT, TableAlign.CENTER, TableAlign.RIGHT), table.alignments)
+        assertEquals(
+            listOf(listOf("Milk", "2", "1.50"), listOf("Eggs", "12", "3.00")),
+            table.rows,
+        )
+    }
+
+    @Test
+    fun table_without_outer_pipes_is_still_parsed() {
+        val md = "Name | Qty\n--- | ---\nMilk | 2"
+        val table = parseMarkdownBlocks(md).single() as MdBlock.Table
+        assertEquals(listOf("Name", "Qty"), table.headers)
+        assertEquals(listOf(listOf("Milk", "2")), table.rows)
+    }
+
+    @Test
+    fun table_rows_are_padded_or_truncated_to_header_width() {
+        val md = "| A | B |\n| --- | --- |\n| short |\n| too | many | cells |"
+        val table = parseMarkdownBlocks(md).single() as MdBlock.Table
+        assertEquals(listOf(listOf("short", ""), listOf("too", "many")), table.rows)
+    }
+
+    @Test
+    fun table_ends_at_a_blank_or_non_row_line() {
+        val md = "| A |\n| --- |\n| 1 |\n\nnot a table row"
+        val blocks = parseMarkdownBlocks(md)
+        assertEquals(MdBlock.Table(listOf("A"), listOf(TableAlign.LEFT), listOf(listOf("1"))), blocks[0])
+        assertEquals(MdBlock.Blank, blocks[1])
+        assertEquals(MdBlock.Paragraph("not a table row"), blocks[2])
+    }
+
+    @Test
+    fun a_lone_pipe_line_without_a_separator_is_just_a_paragraph() {
+        assertEquals(MdBlock.Paragraph("a | b"), parseMarkdownBlocks("a | b").single())
+    }
+
+    @Test
+    fun a_malformed_separator_row_falls_back_to_paragraphs() {
+        // ":--:--:" has a colon in the middle, so it isn't a valid alignment cell -
+        // this must not be misdetected as a table (and must not crash).
+        val md = "| a | b |\n|:--:--:|\nmore text"
+        val blocks = parseMarkdownBlocks(md)
+        assertTrue(blocks.none { it is MdBlock.Table })
+        assertEquals(MdBlock.Paragraph("| a | b |"), blocks[0])
+    }
+
+    @Test
+    fun cell_text_keeps_raw_markdown_for_the_renderer_to_style() {
+        val md = "| **Bold** | [link](http://x) |\n| --- | --- |"
+        val table = parseMarkdownBlocks(md).single() as MdBlock.Table
+        assertEquals(listOf("**Bold**", "[link](http://x)"), table.headers)
+    }
 }
 
 class MarkdownStripTest {
@@ -139,6 +203,12 @@ class MarkdownStripTest {
     @Test
     fun strips_link_to_its_text() {
         assertEquals("Nextcloud", markdownToPlainText("[Nextcloud](https://nextcloud.com)"))
+    }
+
+    @Test
+    fun flattens_a_table_row_and_drops_the_separator() {
+        assertEquals("Name Qty", markdownToPlainText("| Name | Qty |"))
+        assertEquals("", markdownToPlainText("| --- | --- |"))
     }
 }
 
