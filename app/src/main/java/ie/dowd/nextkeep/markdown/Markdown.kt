@@ -8,7 +8,7 @@ sealed interface MdBlock {
     data class Heading(val level: Int, val text: String) : MdBlock
     data class Bullet(val indent: Int, val text: String) : MdBlock
     data class Numbered(val indent: Int, val number: Int, val text: String) : MdBlock
-    data class Task(val checked: Boolean, val text: String) : MdBlock
+    data class Task(val indent: Int, val checked: Boolean, val text: String) : MdBlock
     data class Quote(val text: String) : MdBlock
     data class Code(val lines: List<String>) : MdBlock
     data class Paragraph(val text: String) : MdBlock
@@ -22,7 +22,7 @@ sealed interface MdBlock {
 }
 
 private val headingRe = Regex("^(#{1,6}) +(.*)$")
-private val taskRe = Regex("^[-*] \\[([ xX])] +(.*)$")
+private val taskRe = Regex("^( *)[-*+] \\[([ xX])] +(.*)$")
 private val bulletRe = Regex("^( *)[-*+] +(.*)$")
 private val numberedRe = Regex("^( *)(\\d+)\\. +(.*)$")
 private val dividerRe = Regex("^ {0,3}(-{3,}|\\*{3,}|_{3,})$")
@@ -132,7 +132,11 @@ private fun classifyLine(line: String): MdBlock {
     if (line.isBlank()) return MdBlock.Blank
     dividerRe.find(line)?.let { return MdBlock.Divider }
     taskRe.find(line)?.let {
-        return MdBlock.Task(checked = it.groupValues[1].lowercase() == "x", text = it.groupValues[2])
+        return MdBlock.Task(
+            indent = it.groupValues[1].length / 2,
+            checked = it.groupValues[2].lowercase() == "x",
+            text = it.groupValues[3],
+        )
     }
     headingRe.find(line)?.let {
         return MdBlock.Heading(level = it.groupValues[1].length, text = it.groupValues[2])
@@ -169,7 +173,7 @@ fun markdownToPlainText(markdown: String): String =
             line = splitTableCells(line).joinToString(" ")
         }
         line = headingRe.replace(line) { it.groupValues[2] }
-        line = taskRe.replace(line) { (if (it.groupValues[1].lowercase() == "x") "✓ " else "") + it.groupValues[2] }
+        line = taskRe.replace(line) { (if (it.groupValues[2].lowercase() == "x") "✓ " else "") + it.groupValues[3] }
         line = numberedRe.replace(line) { it.groupValues[3] }
         line = bulletRe.replace(line) { it.groupValues[2] }
         line = line.trimStart().removePrefix(">").let { if (it != line.trimStart()) it.trim() else line }

@@ -6,6 +6,17 @@ All notable changes to NextKeep are recorded here. The format follows
 Each release's APKs are published at
 [github.com/hpdowd/nextkeep/releases](https://github.com/hpdowd/nextkeep/releases).
 
+## [1.2.3] - 2026-06-30
+
+### Fixed
+- **Nested checklist items rendered as plain bullets.** A checklist item indented
+  under another list item (e.g. via the editor's indent button) showed as a bullet
+  point with the literal text `[ ] foo` / `[x] foo` instead of a checkbox, because
+  the block parser's task-list pattern didn't allow leading whitespace the way the
+  bullet/numbered-list patterns do — only the editing/tap-to-toggle side handled
+  indentation correctly. `MdBlock.Task` now carries an indent like the other list
+  blocks, and the renderer indents the checkbox row to match.
+
 ## [1.2.2] - 2026-06-30
 
 ### Added
@@ -114,6 +125,7 @@ Initial release — a Google Keep–styled Android client for Nextcloud Notes
 - App version **derived from git** and shown in Settings; cloud **CI** builds APKs on
   GitHub/Gitea Actions.
 
+[1.2.3]: https://github.com/hpdowd/nextkeep/releases/tag/v1.2.3
 [1.2.2]: https://github.com/hpdowd/nextkeep/releases/tag/v1.2.2
 [1.2.1]: https://github.com/hpdowd/nextkeep/releases/tag/v1.2.1
 [1.2]: https://github.com/hpdowd/nextkeep/releases/tag/v1.2

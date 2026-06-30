@@ -101,8 +101,8 @@ class MarkdownParseTest {
         assertEquals(MdBlock.Heading(2, "Notes"), parseMarkdownBlocks("## Notes").single())
         assertEquals(MdBlock.Bullet(0, "milk"), parseMarkdownBlocks("- milk").single())
         assertEquals(MdBlock.Numbered(0, 1, "first"), parseMarkdownBlocks("1. first").single())
-        assertEquals(MdBlock.Task(false, "todo"), parseMarkdownBlocks("- [ ] todo").single())
-        assertEquals(MdBlock.Task(true, "done"), parseMarkdownBlocks("- [x] done").single())
+        assertEquals(MdBlock.Task(0, false, "todo"), parseMarkdownBlocks("- [ ] todo").single())
+        assertEquals(MdBlock.Task(0, true, "done"), parseMarkdownBlocks("- [x] done").single())
         assertEquals(MdBlock.Quote("hmm"), parseMarkdownBlocks("> hmm").single())
         assertEquals(MdBlock.Divider, parseMarkdownBlocks("---").single())
         assertEquals(MdBlock.Paragraph("just text"), parseMarkdownBlocks("just text").single())
@@ -117,6 +117,15 @@ class MarkdownParseTest {
     @Test
     fun nested_bullet_indent_is_counted() {
         assertEquals(MdBlock.Bullet(1, "child"), parseMarkdownBlocks("  - child").single())
+    }
+
+    @Test
+    fun nested_task_indent_is_counted() {
+        // Regression: a checklist item nested under a bullet (e.g. via the
+        // indent toolbar button) must still render as a checkbox, not fall
+        // through to a plain bullet showing the literal "[ ] text".
+        assertEquals(MdBlock.Task(1, false, "sub-task"), parseMarkdownBlocks("  - [ ] sub-task").single())
+        assertEquals(MdBlock.Task(2, true, "done"), parseMarkdownBlocks("    * [x] done").single())
     }
 
     @Test
@@ -198,6 +207,11 @@ class MarkdownStripTest {
     @Test
     fun keeps_checked_marker_and_strips_rest() {
         assertTrue(markdownToPlainText("- [x] done").contains("done"))
+    }
+
+    @Test
+    fun strips_an_indented_task_too() {
+        assertEquals("sub-task", markdownToPlainText("  - [ ] sub-task"))
     }
 
     @Test

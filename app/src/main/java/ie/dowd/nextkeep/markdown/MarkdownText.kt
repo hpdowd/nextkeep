@@ -124,10 +124,11 @@ fun MarkdownText(
 
                 is MdBlock.Task -> {
                     val ordinal = taskOrdinal++
+                    val indentModifier = Modifier.padding(start = bodyDp * block.indent)
                     val rowModifier = if (onToggleTask != null) {
-                        Modifier.fillMaxWidth().clickable { onToggleTask(ordinal) }
+                        indentModifier.fillMaxWidth().clickable { onToggleTask(ordinal) }
                     } else {
-                        Modifier
+                        indentModifier
                     }
                     Row(modifier = rowModifier, verticalAlignment = Alignment.CenterVertically) {
                     Icon(
