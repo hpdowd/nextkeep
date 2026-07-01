@@ -6,6 +6,19 @@ All notable changes to NextKeep are recorded here. The format follows
 Each release's APKs are published at
 [github.com/hpdowd/nextkeep/releases](https://github.com/hpdowd/nextkeep/releases).
 
+## [1.2.5] - 2026-07-01
+
+### Fixed
+- **Backslash-escaped checklist brackets and punctuation rendered literally.**
+  Text pasted from elsewhere sometimes defensively escapes markdown-sensitive
+  characters (e.g. `- \[ \] todo`, `first \~10 cards`). The task-list pattern
+  only matched literal `[ ]`/`[x]`, so an escaped checkbox fell through to a
+  plain bullet showing the raw `\[ \]` text, and nothing anywhere dropped a
+  backslash before escaped punctuation, so characters like `\~` kept their
+  backslash instead of showing as `~`. Checklists now recognize the escaped
+  form as a checkbox, and both the card-preview text and the rendered editor
+  view strip the backslash from any CommonMark-escapable punctuation.
+
 ## [1.2.4] - 2026-06-30
 
 ### Fixed
@@ -144,6 +157,7 @@ Initial release — a Google Keep–styled Android client for Nextcloud Notes
 - App version **derived from git** and shown in Settings; cloud **CI** builds APKs on
   GitHub/Gitea Actions.
 
+[1.2.5]: https://github.com/hpdowd/nextkeep/releases/tag/v1.2.5
 [1.2.4]: https://github.com/hpdowd/nextkeep/releases/tag/v1.2.4
 [1.2.3]: https://github.com/hpdowd/nextkeep/releases/tag/v1.2.3
 [1.2.2]: https://github.com/hpdowd/nextkeep/releases/tag/v1.2.2

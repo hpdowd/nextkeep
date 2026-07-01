@@ -22,11 +22,38 @@ sealed interface MdBlock {
 }
 
 private val headingRe = Regex("^(#{1,6}) +(.*)$")
-private val taskRe = Regex("^( *)[-*+] \\[([ xX])] +(.*)$")
+// The brackets accept an optional leading backslash (`\[ \]`) since some sources
+// (e.g. text pasted from elsewhere) backslash-escape them defensively; CommonMark
+// treats `\[`/`\]` as a literal bracket anyway, so this is still a task marker.
+private val taskRe = Regex("^( *)[-*+] \\\\?\\[([ xX])\\\\?] +(.*)$")
 private val bulletRe = Regex("^( *)[-*+] +(.*)$")
 private val numberedRe = Regex("^( *)(\\d+)\\. +(.*)$")
 private val dividerRe = Regex("^ {0,3}(-{3,}|\\*{3,}|_{3,})$")
 private val tableSeparatorCellRe = Regex("^:?-+:?$")
+
+/** CommonMark's escapable ASCII punctuation: `\` + one of these is the literal char. */
+internal val escapablePunctuation = setOf(
+    '!', '"', '#', '$', '%', '&', '\'', '(', ')', '*', '+', ',', '-', '.', '/',
+    ':', ';', '<', '=', '>', '?', '@', '[', '\\', ']', '^', '_', '`', '{', '|', '}', '~',
+)
+
+/** Drops a backslash before an escapable punctuation char, leaving other backslashes alone. */
+internal fun unescapeMarkdown(text: String): String {
+    if ('\\' !in text) return text
+    val sb = StringBuilder(text.length)
+    var i = 0
+    while (i < text.length) {
+        val ch = text[i]
+        if (ch == '\\' && i + 1 < text.length && text[i + 1] in escapablePunctuation) {
+            sb.append(text[i + 1])
+            i += 2
+        } else {
+            sb.append(ch)
+            i++
+        }
+    }
+    return sb.toString()
+}
 
 /**
  * Splits a pipe-delimited table row into trimmed cells. Leading/trailing pipes
@@ -179,5 +206,6 @@ fun markdownToPlainText(markdown: String): String =
         line = line.trimStart().removePrefix(">").let { if (it != line.trimStart()) it.trim() else line }
         line = linkRe.replace(line) { it.groupValues[1] }
         line = inlineMarkers.replace(line, "")
+        line = unescapeMarkdown(line)
         line
     }.trim()

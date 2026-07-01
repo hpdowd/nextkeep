@@ -5,6 +5,7 @@ import ie.dowd.nextkeep.markdown.MdBlock
 import ie.dowd.nextkeep.markdown.TableAlign
 import ie.dowd.nextkeep.markdown.markdownToPlainText
 import ie.dowd.nextkeep.markdown.parseMarkdownBlocks
+import ie.dowd.nextkeep.markdown.unescapeMarkdown
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -129,6 +130,17 @@ class MarkdownParseTest {
     }
 
     @Test
+    fun task_brackets_may_be_backslash_escaped() {
+        // Regression: text pasted from elsewhere sometimes backslash-escapes the
+        // task brackets (`\[ \]`); CommonMark treats `\[`/`\]` as a literal
+        // bracket, so this must still be recognized as a checkbox, not a plain
+        // bullet showing the literal "\[ \] text".
+        assertEquals(MdBlock.Task(0, false, "todo"), parseMarkdownBlocks("- \\[ \\] todo").single())
+        assertEquals(MdBlock.Task(0, true, "done"), parseMarkdownBlocks("- \\[x\\] done").single())
+        assertEquals(MdBlock.Task(0, false, "mixed"), parseMarkdownBlocks("- \\[ ] mixed").single())
+    }
+
+    @Test
     fun parses_a_table_with_alignment_and_rows() {
         val md = """
             | Name | Qty | Price |
@@ -223,6 +235,31 @@ class MarkdownStripTest {
     fun flattens_a_table_row_and_drops_the_separator() {
         assertEquals("Name Qty", markdownToPlainText("| Name | Qty |"))
         assertEquals("", markdownToPlainText("| --- | --- |"))
+    }
+
+    @Test
+    fun drops_backslash_from_an_escaped_punctuation_char() {
+        assertEquals("~10", markdownToPlainText("\\~10"))
+        assertEquals("Anki installed", markdownToPlainText("- \\[ \\] Anki installed"))
+    }
+}
+
+class UnescapeMarkdownTest {
+
+    @Test
+    fun drops_backslash_before_escapable_punctuation() {
+        assertEquals("~10", unescapeMarkdown("\\~10"))
+        assertEquals("[x]", unescapeMarkdown("\\[x\\]"))
+    }
+
+    @Test
+    fun leaves_a_backslash_before_a_non_punctuation_char_alone() {
+        assertEquals("C:\\Users", unescapeMarkdown("C:\\Users"))
+    }
+
+    @Test
+    fun leaves_a_trailing_backslash_alone() {
+        assertEquals("end\\", unescapeMarkdown("end\\"))
     }
 }
 

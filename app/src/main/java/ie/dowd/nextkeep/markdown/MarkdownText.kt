@@ -349,6 +349,11 @@ private fun buildInline(text: String, linkColor: Color, codeBg: Color): Annotate
         var i = 0
         while (i < text.length) {
             when {
+                text[i] == '\\' && i + 1 < text.length && text[i + 1] in escapablePunctuation -> {
+                    append(text[i + 1])
+                    i += 2
+                }
+
                 text.startsWith("**", i) || text.startsWith("__", i) -> {
                     val marker = text.substring(i, i + 2)
                     val close = text.indexOf(marker, i + 2)
